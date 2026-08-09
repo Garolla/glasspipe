@@ -1,5 +1,8 @@
 # transform (SQLMesh)
 
+For what the tables actually mean — grain, columns, lineage — see
+[`DATA_MODEL.md`](DATA_MODEL.md). This file is about the tool, not the model.
+
 SQLMesh owns the **staging** and **marts** layers only.
 
 `raw.raw_nrt` and `raw.raw_batch` are *not* SQLMesh models -- their DDL

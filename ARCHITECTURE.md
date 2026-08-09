@@ -2,6 +2,8 @@
 
 glasspipe is a data pipeline built around one idea: lineage and observability should fall out of how the system is built, not get bolted on afterward. Wikimedia EventStreams (the public `recentchange` SSE feed) is used as the first near-real-time source to prove the design end to end.
 
+This document is the *system* — services, data flow, infrastructure choices. For the *data model* — what each table means, its grain, how tables relate — see [`transform/DATA_MODEL.md`](transform/DATA_MODEL.md). That document is the one to keep authoritative as the schema evolves.
+
 ## Principles
 
 1. **Lineage and observability are system properties**, not add-ons.

@@ -2,7 +2,10 @@
 
 A data pipeline covering near-real-time and batch ingestion with lineage
 and observability as system properties, not bolted-on components. See
-[`ARCHITECTURE.md`](ARCHITECTURE.md) for the design and the diagram.
+[`ARCHITECTURE.md`](ARCHITECTURE.md) for the system design, and
+[`transform/DATA_MODEL.md`](transform/DATA_MODEL.md) for the data model
+itself — what each table means, its grain, how tables relate. Start
+there if you're trying to understand what glasspipe actually produces.
 
 This is a first implementation pass: real, runnable code, but built and
 validated in a sandbox with **no Docker daemon and no network access to
