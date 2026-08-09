@@ -1,0 +1,19 @@
+[project]
+name = "glasspipe-batch-extract"
+version = "0.1.0"
+description = "Scheduled batch extraction into ClickHouse raw_batch (glasspipe principle 5 demo)"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "clickhouse-connect>=0.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-httpx>=0.30"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["batch_extract*"]

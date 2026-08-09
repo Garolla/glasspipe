@@ -1,0 +1,22 @@
+[project]
+name = "glasspipe-orchestration"
+version = "0.1.0"
+description = "Dagster project orchestrating and observing the glasspipe pipeline"
+requires-python = ">=3.11"
+dependencies = [
+    "dagster>=1.8",
+    "dagster-webserver>=1.8",
+    "pyarrow>=15.0",
+    "clickhouse-connect>=0.7",
+    "glasspipe-common",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["orchestration*"]

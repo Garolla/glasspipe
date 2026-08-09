@@ -1,0 +1,7 @@
+# Deliberately minimal: run/event storage defaults to the SQLite-backed
+# local instance under $DAGSTER_HOME. That's the KISS choice for a
+# single-deploy compose -- no extra Postgres just for Dagster's own
+# bookkeeping. Revisit if/when this needs to run with more than one
+# webserver/daemon replica.
+telemetry:
+  enabled: false

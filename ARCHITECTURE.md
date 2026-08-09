@@ -14,7 +14,9 @@ glasspipe is a data pipeline built around one idea: lineage and observability sh
 
 ![glasspipe architecture](docs/architecture.svg)
 
-The SSE bridge and the landing layer write to the broker and to Parquet continuously; Dagster doesn't execute those steps but observes them via a sensor. From Parquet onward, SQLMesh loads and transforms inside ClickHouse in orchestrated runs. `raw_nrt` and `raw_batch` stay as distinct tables — nothing in the system forces them to reconcile; downstream models decide if and how to combine them.
+The SSE bridge and the landing layer write to the broker and to Parquet continuously; Dagster doesn't execute those steps but observes them via a sensor. From Parquet onward, Dagster loads `raw.raw_nrt` incrementally and SQLMesh transforms inside ClickHouse in orchestrated runs. `raw_nrt` and `raw_batch` stay as distinct tables — nothing in the system forces them to reconcile; downstream models decide if and how to combine them.
+
+*(Implementation note: the Parquet → `raw_nrt` load is a plain Python Dagster asset, not a SQLMesh model reading Parquet directly as first planned — a `sqlglot`/ClickHouse limitation with the `file()` table function, found while building it. Column-level lineage still covers everything from `staging.*` onward. Full explanation in `transform/README.md`.)*
 
 ## Principles → decisions
 
@@ -58,4 +60,4 @@ Two lanes into the warehouse: `raw_nrt` (bridge → Redpanda → Parquet buffer 
 
 ## Status
 
-Draft, not yet implemented. Next steps: scaffold the `docker-compose`, the bridge service, and the first SQLMesh models against a single filtered Wikimedia stream (e.g. one wiki) before wiring up the batch lane.
+First implementation pass done — see [`README.md`](README.md) for what's built, what's been verified, and how (short version: unit-tested and validated against the real SQLMesh/Dagster/docker-compose tooling, but not yet run end-to-end against live containers). Next step is exactly that: `docker compose up` against real infrastructure and a real Wikimedia connection.

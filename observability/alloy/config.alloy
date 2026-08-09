@@ -1,0 +1,59 @@
+// Grafana Alloy config: ships container logs to the Loki already running
+// on the VPS, and scrapes ClickHouse/Redpanda's Prometheus endpoints to
+// the same VPS's Prometheus/Mimir. Alloy is the single collector for both
+// -- see ARCHITECTURE.md. Endpoint URLs come from env vars so this file
+// has nothing environment-specific baked in.
+
+logging {
+  level = "info"
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "default" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = env("LOKI_ENDPOINT_URL")
+  }
+}
+
+prometheus.scrape "clickhouse" {
+  targets = [
+    {"__address__" = "clickhouse:9363"},
+  ]
+  metrics_path = "/metrics"
+  job_name     = "clickhouse"
+  forward_to   = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.scrape "redpanda" {
+  targets = [
+    {"__address__" = "redpanda:9644"},
+  ]
+  metrics_path = "/public_metrics"
+  job_name     = "redpanda"
+  forward_to   = [prometheus.remote_write.default.receiver]
+}
+
+prometheus.remote_write "default" {
+  endpoint {
+    url = env("PROMETHEUS_REMOTE_WRITE_URL")
+  }
+}

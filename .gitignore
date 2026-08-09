@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+*.log
+
+# local data volumes if ever run outside compose
+/data/
+
+# SQLMesh local cache/logs
+transform/.cache/
+transform/logs/
+
+.env

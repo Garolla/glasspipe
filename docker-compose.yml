@@ -1,0 +1,149 @@
+volumes:
+  clickhouse_data:
+  parquet_data:
+  bridge_data:
+
+services:
+
+  redpanda:
+    image: redpandadata/redpanda:v24.2.7
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --kafka-addr=internal://0.0.0.0:9092
+      - --advertise-kafka-addr=internal://redpanda:9092
+      - --default-log-level=info
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/init:/docker-entrypoint-initdb.d:ro
+      - ./clickhouse/config:/etc/clickhouse-server/config.d:ro
+    ports:
+      - "8123:8123" # HTTP (also used by clickhouse-connect and DBeaver)
+      - "9000:9000" # native protocol
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "-", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  bridge:
+    build:
+      context: services/bridge
+    environment:
+      STREAM_URL: ${STREAM_URL:-https://stream.wikimedia.org/v2/stream/recentchange}
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-wikipedia.recentchange}
+      CHECKPOINT_PATH: /data/bridge/checkpoint.txt
+      HEARTBEAT_PATH: /data/bridge/heartbeat
+    volumes:
+      - bridge_data:/data/bridge
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+
+  landing:
+    build:
+      context: .
+      dockerfile: services/landing/Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-wikipedia.recentchange}
+      KAFKA_GROUP_ID: glasspipe-landing
+      GLASSPIPE_PARQUET_DIR: /data/parquet
+    volumes:
+      - parquet_data:/data/parquet
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+
+  batch_extract:
+    build:
+      context: services/batch_extract
+    environment:
+      PAGEVIEWS_PROJECT: ${PAGEVIEWS_PROJECT:-en.wikipedia}
+      PAGEVIEWS_ACCESS: ${PAGEVIEWS_ACCESS:-all-access}
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_HTTP_PORT: 8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+      CLICKHOUSE_DATABASE: raw
+      POLL_INTERVAL_HOURS: ${BATCH_POLL_INTERVAL_HOURS:-24}
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
+  orchestration-webserver:
+    build:
+      context: .
+      dockerfile: orchestration/Dockerfile
+    command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "workspace.yaml"]
+    working_dir: /app
+    environment: &orchestration_env
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_HTTP_PORT: 8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+      GLASSPIPE_PARQUET_DIR: /data/parquet
+      HEARTBEAT_PATH: /data/bridge/heartbeat
+      SQLMESH_PROJECT_DIR: /opt/transform
+      PARQUET_RETENTION_DAYS: ${PARQUET_RETENTION_DAYS:-3}
+      SQLMESH__GATEWAYS__CLICKHOUSE__CONNECTION__HOST: clickhouse
+      SQLMESH__GATEWAYS__CLICKHOUSE__CONNECTION__USERNAME: ${CLICKHOUSE_USER:-default}
+      SQLMESH__GATEWAYS__CLICKHOUSE__CONNECTION__PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+    volumes:
+      - parquet_data:/data/parquet
+      - bridge_data:/data/bridge:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
+  orchestration-daemon:
+    build:
+      context: .
+      dockerfile: orchestration/Dockerfile
+    command: ["dagster-daemon", "run", "-w", "workspace.yaml"]
+    working_dir: /app
+    environment: *orchestration_env
+    volumes:
+      - parquet_data:/data/parquet
+      - bridge_data:/data/bridge:ro
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:v1.4.3
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "/etc/alloy/config.alloy"]
+    environment:
+      LOKI_ENDPOINT_URL: ${LOKI_ENDPOINT_URL}
+      PROMETHEUS_REMOTE_WRITE_URL: ${PROMETHEUS_REMOTE_WRITE_URL}
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - clickhouse
+      - redpanda
+    restart: unless-stopped

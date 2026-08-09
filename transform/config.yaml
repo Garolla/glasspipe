@@ -1,0 +1,25 @@
+# SQLMesh project config. Connection values are intentionally left blank
+# here -- they're supplied at runtime via SQLMesh's native env var
+# convention (SQLMESH__GATEWAYS__CLICKHOUSE__CONNECTION__<FIELD>), which
+# docker-compose.yml sets for the orchestration service. Nothing
+# credential-shaped belongs in this file.
+gateways:
+  clickhouse:
+    connection:
+      type: clickhouse
+      host:
+      username:
+
+default_gateway: clickhouse
+
+model_defaults:
+  dialect: clickhouse
+  start: 2026-08-01
+  cron: '@hourly'
+
+linter:
+  enabled: true
+  rules:
+    - ambiguousorinvalidcolumn
+    - invalidselectstarexpansion
+    - noambiguousprojections

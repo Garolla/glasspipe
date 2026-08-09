@@ -1,0 +1,18 @@
+[project]
+name = "glasspipe-common"
+version = "0.1.0"
+description = "Shared schema and path conventions for glasspipe services"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["glasspipe_common*"]
