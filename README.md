@@ -2,9 +2,12 @@
 
 A data pipeline covering near-real-time and batch ingestion with lineage
 and observability as system properties, not bolted-on components. See
-[`ARCHITECTURE.md`](ARCHITECTURE.md) for the design and the diagram, and
-[`docs/DEPLOY.md`](docs/DEPLOY.md) for how this gets from GitHub to the
-VPS via exord's Gitea.
+[`ARCHITECTURE.md`](ARCHITECTURE.md) for the design and the diagram.
+
+Deploy is a generic Gitea Actions pipeline (`.gitea/workflows/deploy.yml`):
+mirror this repo into any Gitea instance with a self-hosted runner, push
+to `main`, it tests, validates, and runs `docker compose up -d --build`.
+Nothing in the repo is tied to a specific Gitea instance or host.
 
 This is a first implementation pass: real, runnable code, but built and
 validated in a sandbox with **no Docker daemon and no network access to

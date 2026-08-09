@@ -1,11 +1,16 @@
-# Runs in exord's Gitea (this repo is mirrored there from GitHub — see
-# docs/DEPLOY.md for the one-time setup). Triggers on push to `main`,
-# which only happens via a merged, reviewed PR — deploy is gated on
-# review the same way the DB schema is (ARCHITECTURE.md, principle 4).
+# Runs on a Gitea instance this repo is mirrored to from GitHub (Gitea
+# pull-mirror: New Migration -> check "This repository will be a
+# mirror"). Triggers on push to `main`, which only happens via a merged,
+# reviewed PR -- deploy is gated on review the same way the DB schema is
+# (ARCHITECTURE.md, principle 4).
 #
 # `runs-on: self-hosted` assumes a Gitea Actions runner registered on the
-# target VPS with that label — check docs/DEPLOY.md and adjust the label
-# to match your actual runner registration if it differs.
+# target host with that label -- adjust to match your actual runner
+# registration if it differs. The deploy step expects a persistent
+# `.env` at /opt/glasspipe/.env on that host (see docker-compose.yml and
+# .env.example for what it needs to contain) -- it's deliberately not
+# read from the checkout directory, since the runner's workspace is a
+# fresh path on every run.
 name: deploy
 
 "on":
