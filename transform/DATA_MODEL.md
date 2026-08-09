@@ -156,8 +156,9 @@ idempotent — re-running a given hour recomputes the same numbers from
 ### `marts.pageviews_top`
 
 `transform/models/pageviews_top.sql`, kind `VIEW`. The batch lane's
-mart: `staging.stg_events_batch` filtered to `rank <= 100`. Same columns
-as staging, same grain, just narrowed to what's actually "top".
+mart: `staging.stg_events_batch` filtered to `rank <= 100`, dropping
+`fetched_at` (nothing at this layer needs to know when glasspipe pulled
+the row, only what it says). Same grain as staging.
 
 ## Invariants
 

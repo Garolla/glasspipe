@@ -5,7 +5,7 @@
 MODEL (
   name staging.stg_events_batch,
   kind VIEW,
-  grain (date, project, article),
+  grain (date, project, access, article),
 );
 
 SELECT

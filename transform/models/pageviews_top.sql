@@ -3,7 +3,7 @@
 MODEL (
   name marts.pageviews_top,
   kind VIEW,
-  grain (date, project, article),
+  grain (date, project, access, article),
 );
 
 SELECT
