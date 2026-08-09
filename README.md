@@ -4,11 +4,6 @@ A data pipeline covering near-real-time and batch ingestion with lineage
 and observability as system properties, not bolted-on components. See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) for the design and the diagram.
 
-Deploy is a generic Gitea Actions pipeline (`.gitea/workflows/deploy.yml`):
-mirror this repo into any Gitea instance with a self-hosted runner, push
-to `main`, it tests, validates, and runs `docker compose up -d --build`.
-Nothing in the repo is tied to a specific Gitea instance or host.
-
 This is a first implementation pass: real, runnable code, but built and
 validated in a sandbox with **no Docker daemon and no network access to
 wikimedia.org**. Everything below states plainly what was actually
@@ -61,58 +56,25 @@ runs `sqlmesh plan --auto-apply`, which creates-or-updates).
 
 ## Deploying
 
-`docker-compose up --build` above is local dev. For an actual deploy,
-`.gitea/workflows/deploy.yml` runs the same checks and then
-`docker compose up -d --build` on a host with a Gitea Actions runner.
-None of this is org- or host-specific -- it's the same for anyone who
-clones this.
-
-**1. Get the code into a Gitea instance.** If you're developing on
-GitHub (as this repo does) and deploying via Gitea, mirror it:
-Gitea → **New Migration** → paste the repo's HTTPS URL → check
-**"This repository will be a mirror"**. Gitea then pulls on its own
-schedule (lower the interval in **Settings → Repository → Mirror
-Settings**, e.g. `10m`, if you want deploys to follow pushes to `main`
-more promptly). Pull mirror, not push mirror, on purpose: Gitea only
-needs read access to the source repo, so no Gitea credentials ever have
-to be stored as secrets on the GitHub side. If developing directly in
-Gitea, skip this step.
-
-**2. Register a Gitea Actions runner** on whatever host should run the
-deploy (repo → **Settings → Actions → Runners**). `deploy.yml` targets
-`runs-on: self-hosted` -- check the runner's actual registered label and
-adjust that line if it differs.
-
-**3. Create the secrets file on that host**, at a fixed path (not in the
-checkout -- the runner's workspace is a fresh directory on every run):
+Deliberately out of scope for this repo: how/where you run this in
+production is a CI/CD and infrastructure choice, not something the
+pipeline's own code should assume or bake in. What this repo commits to
+is the interface: `docker-compose.yml` plus a populated `.env` (see
+`.env.example`) is a complete, self-sufficient deploy target. Any CI/CD
+system pointed at this repo can drive it the same way local dev does:
 
 ```bash
-mkdir -p /opt/glasspipe
-cat > /opt/glasspipe/.env <<'EOF'
-CLICKHOUSE_USER=default
-CLICKHOUSE_PASSWORD=<pick one>
-LOKI_ENDPOINT_URL=<your Loki push endpoint>
-PROMETHEUS_REMOTE_WRITE_URL=<your Prometheus/Mimir remote_write endpoint>
-EOF
-chmod 600 /opt/glasspipe/.env
+docker compose --env-file /path/to/your/.env up -d --build
 ```
 
-This is a one-time manual step, on purpose -- see `.env.example` for the
-full list of variables `docker-compose.yml` reads from it.
-
-**4. Push to `main`.** The workflow runs the per-package test suites, the
-SQLMesh parse/render check, `dagster definitions validate`, and
-`docker compose config`; only if all of that passes does it run
-`docker compose --env-file /opt/glasspipe/.env up -d --build`. Anything
-red stops before the deploy step -- nothing broken ever gets redeployed.
-
-One detail worth knowing if you're debugging a deploy:
-`docker-compose.yml` pins `name: glasspipe` at the top. Without that,
-Compose infers the project name from the current directory's basename --
-fine locally, but the Actions runner checks out into a different temp
-path every run, which would make Compose treat each deploy as a new
-stack and mint fresh volumes instead of reusing `clickhouse_data`.
-Pinning the name is what makes the data durable across deploys.
+One detail worth knowing if you're wiring that up: `docker-compose.yml`
+pins `name: glasspipe` at the top. Without that, Compose infers the
+project name from the current directory's basename -- fine locally, but
+a CI runner that checks out into a fresh temp path on every run would
+make Compose treat each deploy as a new stack and mint fresh volumes
+instead of reusing `clickhouse_data`. Whatever runs the deploy should
+also keep `.env` at a fixed path outside the checkout, for the same
+reason -- it isn't and shouldn't be committed.
 
 ## What's been verified, and how
 
