@@ -1,0 +1,65 @@
+# Runs in exord's Gitea (this repo is mirrored there from GitHub — see
+# docs/DEPLOY.md for the one-time setup). Triggers on push to `main`,
+# which only happens via a merged, reviewed PR — deploy is gated on
+# review the same way the DB schema is (ARCHITECTURE.md, principle 4).
+#
+# `runs-on: self-hosted` assumes a Gitea Actions runner registered on the
+# target VPS with that label — check docs/DEPLOY.md and adjust the label
+# to match your actual runner registration if it differs.
+name: deploy
+
+"on":
+  push:
+    branches: [main]
+
+jobs:
+  test-and-deploy:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test each package
+        run: |
+          set -e
+          for d in packages/glasspipe_common services/bridge services/landing services/batch_extract orchestration; do
+            venv="/tmp/glasspipe-ci-venv-$(basename "$d")"
+            python3 -m venv "$venv"
+            "$venv/bin/pip" install -q -e "$d[dev]"
+            "$venv/bin/pytest" -q "$d"
+          done
+
+      - name: Validate SQLMesh project (parse + render, no live DB needed)
+        run: |
+          set -e
+          venv=/tmp/glasspipe-ci-venv-sqlmesh
+          python3 -m venv "$venv"
+          "$venv/bin/pip" install -q "sqlmesh[clickhouse]"
+          SQLMESH__GATEWAYS__CLICKHOUSE__CONNECTION__HOST=localhost \
+          SQLMESH__GATEWAYS__CLICKHOUSE__CONNECTION__USERNAME=default \
+          "$venv/bin/python" -c "
+          from sqlmesh.core.context import Context
+          ctx = Context(paths='transform')
+          for name in ctx.models:
+              ctx.get_model(name).render_query()
+          print(f'sqlmesh project OK: {len(ctx.models)} models parsed')
+          "
+
+      - name: Validate Dagster definitions against the real workspace
+        run: |
+          set -e
+          venv=/tmp/glasspipe-ci-venv-dagster
+          python3 -m venv "$venv"
+          "$venv/bin/pip" install -q -e packages/glasspipe_common -e orchestration
+          dagster_home=/tmp/glasspipe-ci-dagster-home
+          mkdir -p "$dagster_home"
+          cp orchestration/dagster.yaml "$dagster_home/dagster.yaml"
+          DAGSTER_HOME="$dagster_home" "$venv/bin/dagster" definitions validate -w orchestration/workspace.yaml
+
+      - name: Validate docker-compose.yml
+        run: docker compose config -q
+
+      - name: Deploy
+        run: |
+          set -e
+          docker compose --env-file /opt/glasspipe/.env up -d --build
+          docker image prune -f

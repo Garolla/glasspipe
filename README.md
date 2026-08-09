@@ -2,7 +2,9 @@
 
 A data pipeline covering near-real-time and batch ingestion with lineage
 and observability as system properties, not bolted-on components. See
-[`ARCHITECTURE.md`](ARCHITECTURE.md) for the design and the diagram.
+[`ARCHITECTURE.md`](ARCHITECTURE.md) for the design and the diagram, and
+[`docs/DEPLOY.md`](docs/DEPLOY.md) for how this gets from GitHub to the
+VPS via exord's Gitea.
 
 This is a first implementation pass: real, runnable code, but built and
 validated in a sandbox with **no Docker daemon and no network access to

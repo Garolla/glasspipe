@@ -1,3 +1,5 @@
+name: glasspipe
+
 volumes:
   clickhouse_data:
   parquet_data:
