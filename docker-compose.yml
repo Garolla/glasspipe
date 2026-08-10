@@ -97,7 +97,7 @@ services:
     build:
       context: .
       dockerfile: orchestration/Dockerfile
-    command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "workspace.yaml"]
+    command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "/opt/dagster_home/workspace.yaml"]
     working_dir: /app
     environment: &orchestration_env
       CLICKHOUSE_HOST: clickhouse
@@ -125,7 +125,7 @@ services:
     build:
       context: .
       dockerfile: orchestration/Dockerfile
-    command: ["dagster-daemon", "run", "-w", "workspace.yaml"]
+    command: ["dagster-daemon", "run", "-w", "/opt/dagster_home/workspace.yaml"]
     working_dir: /app
     environment: *orchestration_env
     volumes:

@@ -11,7 +11,9 @@ COPY bridge ./bridge
 
 RUN pip install --no-cache-dir .
 
-RUN useradd --create-home glasspipe
+RUN useradd --create-home glasspipe \
+    && mkdir -p /data/bridge \
+    && chown -R glasspipe:glasspipe /data/bridge
 USER glasspipe
 
 ENTRYPOINT ["python", "-m", "bridge.main"]

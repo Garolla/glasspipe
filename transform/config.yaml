@@ -9,6 +9,13 @@ gateways:
       type: clickhouse
       host:
       username:
+    # ClickHouse can't back SQLMesh's own state store (it lacks the
+    # transactional guarantees SQLMesh's state layer needs), so state is
+    # kept separately in an embedded DuckDB file rather than a new service
+    # -- consistent with KISS (see ARCHITECTURE.md).
+    state_connection:
+      type: duckdb
+      database: /opt/transform/sqlmesh_state.db
 
 default_gateway: clickhouse
 
