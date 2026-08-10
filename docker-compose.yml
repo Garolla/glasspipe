@@ -5,6 +5,7 @@ volumes:
   parquet_data:
   bridge_data:
   sqlmesh_state:
+  dagster_history:
 
 services:
 
@@ -116,6 +117,7 @@ services:
       - parquet_data:/data/parquet
       - bridge_data:/data/bridge:ro
       - sqlmesh_state:/opt/transform/.state
+      - dagster_history:/opt/dagster_home/history
     ports:
       - "3000:3000"
     depends_on:
@@ -134,6 +136,7 @@ services:
       - parquet_data:/data/parquet
       - bridge_data:/data/bridge:ro
       - sqlmesh_state:/opt/transform/.state
+      - dagster_history:/opt/dagster_home/history
     depends_on:
       clickhouse:
         condition: service_healthy
