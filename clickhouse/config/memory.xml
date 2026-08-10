@@ -1,0 +1,17 @@
+<!--
+     Base config.xml defaults max_server_memory_usage_to_ram_ratio to 0.9:
+     ClickHouse will try to use up to 90% of whatever RAM it detects on
+     the host. Without an explicit container memory limit, that host
+     figure isn't "this container's share", it's the VPS's entire RAM;
+     ClickHouse alone could crowd out Redpanda, Dagster, and everything
+     else. docker-compose.yml now sets a hard container limit (mem_limit)
+     as the real safety net; this sets a soft limit somewhat below that
+     hard ceiling, so ClickHouse rejects/degrades queries gracefully via
+     its own memory tracker instead of getting killed abruptly by the
+     Linux OOM killer when it hits the cgroup wall.
+
+     2.5 GiB, under the 3g container mem_limit.
+-->
+<clickhouse>
+    <max_server_memory_usage>2684354560</max_server_memory_usage>
+</clickhouse>

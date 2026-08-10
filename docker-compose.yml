@@ -16,9 +16,11 @@ services:
       - start
       - --mode=dev-container
       - --smp=1
+      - --memory=1200M
       - --kafka-addr=internal://0.0.0.0:9092
       - --advertise-kafka-addr=internal://redpanda:9092
       - --default-log-level=info
+    mem_limit: 1536m
     ports:
       - "127.0.0.1:9092:9092"
     healthcheck:
@@ -37,6 +39,7 @@ services:
       - clickhouse_data:/var/lib/clickhouse
       - ./clickhouse/init:/docker-entrypoint-initdb.d:ro
       - ./clickhouse/config:/etc/clickhouse-server/config.d:ro
+    mem_limit: 3g
     ports:
       - "127.0.0.1:8123:8123" # HTTP (also used by clickhouse-connect and DBeaver)
       - "127.0.0.1:9000:9000" # native protocol
@@ -55,6 +58,7 @@ services:
       KAFKA_TOPIC: ${KAFKA_TOPIC:-wikipedia.recentchange}
       CHECKPOINT_PATH: /data/bridge/checkpoint.txt
       HEARTBEAT_PATH: /data/bridge/heartbeat
+    mem_limit: 128m
     volumes:
       - bridge_data:/data/bridge
     depends_on:
@@ -71,6 +75,7 @@ services:
       KAFKA_TOPIC: ${KAFKA_TOPIC:-wikipedia.recentchange}
       KAFKA_GROUP_ID: glasspipe-landing
       GLASSPIPE_PARQUET_DIR: /data/parquet
+    mem_limit: 256m
     volumes:
       - parquet_data:/data/parquet
     depends_on:
@@ -90,6 +95,7 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
       CLICKHOUSE_DATABASE: raw
       POLL_INTERVAL_HOURS: ${BATCH_POLL_INTERVAL_HOURS:-24}
+    mem_limit: 128m
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -121,6 +127,7 @@ services:
       - bridge_data:/data/bridge:ro
       - sqlmesh_state:/opt/transform/.state
       - dagster_history:/opt/dagster_home/history
+    mem_limit: 512m
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
@@ -142,6 +149,7 @@ services:
       - bridge_data:/data/bridge:ro
       - sqlmesh_state:/opt/transform/.state
       - dagster_history:/opt/dagster_home/history
+    mem_limit: 512m
     depends_on:
       clickhouse:
         condition: service_healthy
