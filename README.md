@@ -93,6 +93,14 @@ instead of reusing `clickhouse_data`. Whatever runs the deploy should
 also keep `.env` at a fixed path outside the checkout, for the same
 reason -- it isn't and shouldn't be committed.
 
+Another: Dagster (`3000`), ClickHouse (`8123`/`9000`), and Redpanda
+(`9092`) are published bound to `127.0.0.1` only, not `0.0.0.0` -- none
+of them have auth, so on a host with a public IP they should never be
+reachable directly from the internet. Get to them from outside the host
+via an SSH tunnel, or put a reverse proxy with auth in front (out of
+scope here -- that's host config, not this repo's concern, same
+reasoning as the deploy pipeline itself).
+
 ## What's been verified, and how
 
 Nothing here was run end-to-end in live containers -- this sandbox has no
