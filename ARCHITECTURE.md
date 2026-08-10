@@ -52,7 +52,8 @@ Two lanes into the warehouse: `raw_nrt` (bridge → Redpanda → Parquet buffer 
 | Transformation | SQLMesh | Native column-level lineage, CI gate on breaking changes |
 | SQLMesh state store | Embedded DuckDB, on a persisted Docker volume | ClickHouse can't back SQLMesh's own bookkeeping (backfilled intervals, model fingerprints, prod's pointers) -- no transactional guarantees. Only SQLMesh's own subprocess touches this file, so single-writer is fine here, unlike the warehouse role DuckDB was dropped for below |
 | Orchestration | Dagster | Native assets + observed external assets, freshness/quality asset checks |
-| Logs and metrics | Grafana Alloy → Loki/Grafana | Reuses the Grafana + Loki stack already running on the VPS; Alloy scrapes ClickHouse/Redpanda's `/metrics` |
+| Logs | Grafana Alloy → Loki | Reuses the Loki already running on the VPS; push-based, works with any deployer's Loki with no assumptions about their setup |
+| Metrics | The deployer's own Prometheus, scraping ClickHouse/Redpanda directly | Not pushed through Alloy -- vanilla Prometheus doesn't accept remote-write by default, found running this for real (see `observability/README.md`) |
 
 ## Alternatives considered and dropped
 
