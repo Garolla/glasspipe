@@ -8,6 +8,7 @@ dependencies = [
     "dagster-webserver>=1.8",
     "pyarrow>=15.0",
     "clickhouse-connect>=0.7",
+    "confluent-kafka>=2.4",
     "glasspipe-common",
 ]
 

@@ -14,6 +14,9 @@ class OrchestrationConfig:
     bridge_heartbeat_path: str
     sqlmesh_project_dir: str
     parquet_retention_days: int
+    kafka_bootstrap_servers: str
+    kafka_topic: str
+    kafka_group_id: str
 
     @classmethod
     def from_env(cls) -> "OrchestrationConfig":
@@ -26,4 +29,9 @@ class OrchestrationConfig:
             bridge_heartbeat_path=os.environ.get("HEARTBEAT_PATH", "/data/bridge/heartbeat"),
             sqlmesh_project_dir=os.environ.get("SQLMESH_PROJECT_DIR", "/opt/transform"),
             parquet_retention_days=int(os.environ.get("PARQUET_RETENTION_DAYS", "3")),
+            # Same env var names/defaults as services/bridge and services/landing --
+            # this reads landing's consumer group, doesn't create its own.
+            kafka_bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "redpanda:9092"),
+            kafka_topic=os.environ.get("KAFKA_TOPIC", "wikipedia.recentchange"),
+            kafka_group_id=os.environ.get("KAFKA_GROUP_ID", "glasspipe-landing"),
         )
