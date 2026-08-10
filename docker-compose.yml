@@ -28,6 +28,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    restart: on-failure
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
@@ -48,6 +49,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    restart: on-failure
 
   bridge:
     build:
@@ -64,7 +66,7 @@ services:
     depends_on:
       redpanda:
         condition: service_healthy
-    restart: unless-stopped
+    restart: on-failure
 
   landing:
     build:
@@ -81,7 +83,7 @@ services:
     depends_on:
       redpanda:
         condition: service_healthy
-    restart: unless-stopped
+    restart: on-failure
 
   batch_extract:
     build:
@@ -99,7 +101,7 @@ services:
     depends_on:
       clickhouse:
         condition: service_healthy
-    restart: unless-stopped
+    restart: on-failure
 
   orchestration-webserver:
     build:
@@ -135,7 +137,7 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
-    restart: unless-stopped
+    restart: on-failure
 
   orchestration-daemon:
     build:
@@ -155,7 +157,7 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
-    restart: unless-stopped
+    restart: on-failure
 
   alloy:
     image: grafana/alloy:v1.4.3
@@ -170,4 +172,4 @@ services:
     depends_on:
       - clickhouse
       - redpanda
-    restart: unless-stopped
+    restart: on-failure
