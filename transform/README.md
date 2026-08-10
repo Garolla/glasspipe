@@ -45,6 +45,43 @@ If a future sqlglot release fixes ClickHouse table-function parsing,
   NRT lane (principle 5).
 - `audits/not_null_wiki.sql` -- example audit wired to `edits_hourly`.
 
+## State store
+
+SQLMesh needs somewhere to keep its own bookkeeping -- which time
+intervals of each incremental model have already been backfilled, model
+fingerprints (to tell a real logic change from a cosmetic one), and
+which physical table `prod`'s views currently point at (SQLMesh deploys
+new model versions blue/green-style, swapping the pointer once the new
+table is ready). This is metadata *about* the pipeline, not pipeline
+data -- it doesn't live in `raw`/`staging`/`marts`.
+
+ClickHouse can't hold it: SQLMesh refuses to use the same engine as a
+`gateways.clickhouse.connection` for `state_connection`, because
+ClickHouse doesn't give SQLMesh the transactional guarantees its state
+layer needs. This only became visible once the stack was actually run
+against a live ClickHouse (`sqlmesh plan` failing outright) -- the
+earlier `Context(paths=...)` / `render_query()` validation parsed and
+rendered the models fine without ever touching state.
+
+`transform/config.yaml` points `state_connection` at an embedded DuckDB
+file instead of standing up another service -- consistent with KISS
+(`ARCHITECTURE.md`). This is a different role than the "DuckDB as the
+warehouse" option `ARCHITECTURE.md` already dropped: DuckDB's
+single-writer limitation ruled it out for concurrent read/write serving,
+but here only SQLMesh's own subprocess ever touches this file, so
+single-writer is fine.
+
+That file lives at `/opt/transform/.state/sqlmesh_state.db` inside the
+`orchestration-webserver`/`orchestration-daemon` containers, on the
+`sqlmesh_state` Docker volume (`docker-compose.yml`). Without that
+volume, the file sits on the container's own writable layer and
+disappears on every image rebuild -- SQLMesh then has no memory of what
+it already computed, so the next `plan` treats every model as brand new
+and re-backfills every incremental model's entire configured range from
+scratch. For `edits_hourly` that's cheap today (a handful of hours of
+Wikimedia data); it stops being cheap once real history accumulates in
+`raw.raw_nrt`.
+
 ## Running locally
 
 Connection settings come from `SQLMESH__GATEWAYS__CLICKHOUSE__CONNECTION__*`
@@ -58,9 +95,10 @@ export SQLMESH__GATEWAYS__CLICKHOUSE__CONNECTION__USERNAME=default
 sqlmesh plan
 ```
 
-This project's models have been validated by parsing/rendering them
-against a real `sqlmesh`/`sqlglot` install (`Context(paths=...)`,
+This project's models were originally validated only by parsing/rendering
+them against a real `sqlmesh`/`sqlglot` install (`Context(paths=...)`,
 `model.render_query()`), not executed against a live ClickHouse -- there
 wasn't one available in the environment this was built in. `sqlmesh plan`
-against a real database is the next step before trusting this in
-production.
+has since been run against a real ClickHouse (see the "State store"
+section above for what that run caught), and `staging.*`/`marts.*` build
+and query correctly.

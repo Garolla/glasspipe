@@ -4,6 +4,7 @@ volumes:
   clickhouse_data:
   parquet_data:
   bridge_data:
+  sqlmesh_state:
 
 services:
 
@@ -114,6 +115,7 @@ services:
     volumes:
       - parquet_data:/data/parquet
       - bridge_data:/data/bridge:ro
+      - sqlmesh_state:/opt/transform/.state
     ports:
       - "3000:3000"
     depends_on:
@@ -131,6 +133,7 @@ services:
     volumes:
       - parquet_data:/data/parquet
       - bridge_data:/data/bridge:ro
+      - sqlmesh_state:/opt/transform/.state
     depends_on:
       clickhouse:
         condition: service_healthy

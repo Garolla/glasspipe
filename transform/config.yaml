@@ -12,10 +12,15 @@ gateways:
     # ClickHouse can't back SQLMesh's own state store (it lacks the
     # transactional guarantees SQLMesh's state layer needs), so state is
     # kept separately in an embedded DuckDB file rather than a new service
-    # -- consistent with KISS (see ARCHITECTURE.md).
+    # -- consistent with KISS (see ARCHITECTURE.md). This path sits on the
+    # sqlmesh_state Docker volume (docker-compose.yml), not the plain image
+    # filesystem: without that volume, every image rebuild would silently
+    # wipe SQLMesh's bookkeeping (which time ranges are already backfilled,
+    # model fingerprints, prod's virtual-layer pointers) and force a full
+    # re-backfill of every incremental model on next `plan`.
     state_connection:
       type: duckdb
-      database: /opt/transform/sqlmesh_state.db
+      database: /opt/transform/.state/sqlmesh_state.db
 
 default_gateway: clickhouse
 
