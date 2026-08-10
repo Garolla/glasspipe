@@ -21,5 +21,5 @@ SELECT
   countIf(bot) AS bot_edit_count,
   uniqExact(user) AS distinct_editors
 FROM staging.stg_events_nrt
-WHERE event_dt BETWEEN @start_date AND @end_date
+WHERE event_dt BETWEEN @start_ts AND @end_ts
 GROUP BY wiki, hour_ts
