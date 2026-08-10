@@ -7,6 +7,7 @@ never leaves a half-written checkpoint that would corrupt the resume point.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 
 
@@ -20,6 +21,12 @@ class Checkpoint:
             return None
         value = self.path.read_text().strip()
         return value or None
+
+    def age_seconds(self) -> float | None:
+        """Time since the checkpoint file was last written, or None if it doesn't exist yet."""
+        if not self.path.exists():
+            return None
+        return time.time() - self.path.stat().st_mtime
 
     def write(self, last_event_id: str) -> None:
         tmp_path = self.path.with_suffix(self.path.suffix + ".tmp")

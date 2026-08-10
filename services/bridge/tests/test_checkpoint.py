@@ -6,6 +6,19 @@ def test_read_missing_returns_none(tmp_path):
     assert cp.read() is None
 
 
+def test_age_seconds_missing_returns_none(tmp_path):
+    cp = Checkpoint(tmp_path / "checkpoint.txt")
+    assert cp.age_seconds() is None
+
+
+def test_age_seconds_after_write_is_small(tmp_path):
+    cp = Checkpoint(tmp_path / "checkpoint.txt")
+    cp.write("abc-123")
+    age = cp.age_seconds()
+    assert age is not None
+    assert 0 <= age < 5
+
+
 def test_write_then_read_roundtrip(tmp_path):
     cp = Checkpoint(tmp_path / "sub" / "checkpoint.txt")
     cp.write("abc-123")

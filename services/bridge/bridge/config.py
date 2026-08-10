@@ -16,6 +16,7 @@ class BridgeConfig:
     reconnect_max_seconds: float
     connect_timeout_seconds: float
     read_timeout_seconds: float
+    max_checkpoint_age_seconds: float
 
     @classmethod
     def from_env(cls) -> "BridgeConfig":
@@ -32,4 +33,5 @@ class BridgeConfig:
             reconnect_max_seconds=float(os.environ.get("RECONNECT_MAX_SECONDS", "60")),
             connect_timeout_seconds=float(os.environ.get("CONNECT_TIMEOUT_SECONDS", "10")),
             read_timeout_seconds=float(os.environ.get("READ_TIMEOUT_SECONDS", "90")),
+            max_checkpoint_age_seconds=float(os.environ.get("MAX_CHECKPOINT_AGE_SECONDS", "900")),
         )

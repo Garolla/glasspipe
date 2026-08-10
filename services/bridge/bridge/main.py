@@ -30,6 +30,24 @@ def touch_heartbeat(path: str) -> None:
     p.touch()
 
 
+def resolve_resume_id(
+    last_event_id: str | None, checkpoint_age_seconds: float | None, max_age_seconds: float
+) -> str | None:
+    """Decide what Last-Event-ID (if any) to resume from.
+
+    A checkpoint older than max_age_seconds is treated as unusable: resuming
+    from it would ask Wikimedia to replay everything since then, which for
+    the unfiltered global firehose can mean hours of backlog delivered all
+    at once (this is what caused the original CPU/disk incident). Accepting
+    a small gap in the data by starting from "now" is the safer trade.
+    """
+    if last_event_id is None:
+        return None
+    if checkpoint_age_seconds is not None and checkpoint_age_seconds > max_age_seconds:
+        return None
+    return last_event_id
+
+
 def run(config: BridgeConfig) -> None:
     checkpoint = Checkpoint(config.checkpoint_path)
     producer = EventProducer(config.kafka_bootstrap_servers)
@@ -37,7 +55,14 @@ def run(config: BridgeConfig) -> None:
     attempt = 0
     with httpx.Client() as client:
         while not _shutdown:
-            last_event_id = checkpoint.read()
+            stored_event_id = checkpoint.read()
+            checkpoint_age = checkpoint.age_seconds()
+            last_event_id = resolve_resume_id(stored_event_id, checkpoint_age, config.max_checkpoint_age_seconds)
+            if stored_event_id is not None and last_event_id is None:
+                logger.warning(
+                    "checkpoint is %.0fs old (> %.0fs), skipping resume to avoid a large backlog replay",
+                    checkpoint_age, config.max_checkpoint_age_seconds,
+                )
             logger.info("connecting to %s (resume from %s)", config.stream_url, last_event_id)
             # event.id is buffered here and only fsync'd to disk every 50
             # events (or at connection end, below) -- checkpointing every
