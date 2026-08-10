@@ -39,6 +39,13 @@ def run(config: BridgeConfig) -> None:
         while not _shutdown:
             last_event_id = checkpoint.read()
             logger.info("connecting to %s (resume from %s)", config.stream_url, last_event_id)
+            # event.id is buffered here and only fsync'd to disk every 50
+            # events (or at connection end, below) -- checkpointing every
+            # single event turned out to dominate the container's disk
+            # I/O (~3GB written for a few hundred KB of actual state) for
+            # no real benefit: a resume replays at most 50 events, already
+            # deduped downstream by event_id (staging.stg_events_nrt).
+            pending_checkpoint_id: str | None = None
             try:
                 events_seen_this_connection = 0
                 for event in stream_events(
@@ -56,12 +63,14 @@ def run(config: BridgeConfig) -> None:
 
                     producer.produce(config.kafka_topic, key=event.id, value=event.data)
                     if event.id:
-                        checkpoint.write(event.id)
+                        pending_checkpoint_id = event.id
 
                     events_seen_this_connection += 1
                     if events_seen_this_connection % 50 == 0:
                         touch_heartbeat(config.heartbeat_path)
                         producer.flush(timeout=1.0)
+                        if pending_checkpoint_id:
+                            checkpoint.write(pending_checkpoint_id)
 
                     if events_seen_this_connection == 1:
                         attempt = 0  # connection is healthy, reset backoff
@@ -70,6 +79,8 @@ def run(config: BridgeConfig) -> None:
                 logger.warning("stream connection lost: %s", exc)
 
             producer.flush(timeout=5.0)
+            if pending_checkpoint_id:
+                checkpoint.write(pending_checkpoint_id)
             touch_heartbeat(config.heartbeat_path)
 
             if _shutdown:
