@@ -30,13 +30,20 @@ already reach scrape targets. ClickHouse's `/metrics` endpoint is enabled
 via `clickhouse/config/prometheus.xml`; Redpanda exposes
 `/public_metrics` on its admin port (`9644`) by default.
 
-**Not verified against a live Alloy binary** -- there was no way to
-install/run Alloy in the sandbox this was built in, and network access to
-fetch it was blocked. The component names and River syntax
-(`discovery.docker`, `loki.source.docker`, `loki.write`, the `env()`
-stdlib function) are correct as of recent Alloy releases at the time of
-writing, but this file should be smoke-tested with `alloy fmt` / `alloy
-run` before being trusted. The logs-only version above *has* been run for
-real, on real infrastructure -- see the repo's commit history.
+**Verified against a live Alloy binary and a real Loki**, via
+`docker compose --profile observability up`. The component names and
+River syntax (`discovery.docker`, `loki.source.docker`, `loki.write`, the
+`env()` stdlib function) work as documented against recent Alloy
+releases.
+
+One thing to know if you're relying on this for filtering by
+container in your own Grafana/Loki: whether logs are queryable *by
+container name* (vs. just full-text search) depends on your Docker
+daemon's own logging config, not on Alloy. If your Docker daemon uses
+the default `json-file` driver without a `tag` log-opt set, container
+identity isn't attached to log lines the way some Loki pipelines expect.
+This is host-level Docker config, out of scope for this repo the same
+way the rest of deploy infra is -- but worth checking if per-container
+filtering doesn't work as expected.
 
 Required env vars (see `.env.example`): `LOKI_ENDPOINT_URL`.

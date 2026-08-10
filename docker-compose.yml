@@ -60,6 +60,7 @@ services:
       KAFKA_TOPIC: ${KAFKA_TOPIC:-wikipedia.recentchange}
       CHECKPOINT_PATH: /data/bridge/checkpoint.txt
       HEARTBEAT_PATH: /data/bridge/heartbeat
+      MAX_CHECKPOINT_AGE_SECONDS: ${MAX_CHECKPOINT_AGE_SECONDS:-900}
     mem_limit: 128m
     volumes:
       - bridge_data:/data/bridge

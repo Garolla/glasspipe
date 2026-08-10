@@ -102,10 +102,12 @@ reasoning as the deploy pipeline itself).
 
 ## What's been verified, and how
 
-Nothing here was run end-to-end in live containers -- this sandbox has no
-Docker daemon (`docker info` fails: no `/var/run/docker.sock`) and its
-network egress blocks `wikimedia.org`. What *was* checked, for real,
-against the actual installed tools:
+This has since been run end-to-end against real infrastructure: a live
+`docker compose up --profile observability`, a real connection to
+Wikimedia's SSE firehose, real inserts into ClickHouse, SQLMesh runs
+against it, and Alloy shipping logs to a real Loki. What was checked
+before that first live run, against the actual installed tools in a
+sandbox with no Docker daemon and no network egress to `wikimedia.org`:
 
 - **All unit tests pass** (`pytest`) in each of `packages/glasspipe_common`,
   `services/bridge`, `services/landing`, `services/batch_extract`,
@@ -126,13 +128,45 @@ against the actual installed tools:
 - **`docker compose config` validates** the compose file's syntax and
   interpolation.
 
-What's *not* verified: a live `docker compose up`, a real connection to
-Wikimedia's SSE endpoint, a real ClickHouse taking real inserts, the
-Alloy config against a real Alloy binary (see `observability/README.md`),
-and the `batch_extract` pageviews API response shape against a live call
-(see `services/batch_extract/batch_extract/client.py` docstring). All of
-these are the natural next step, in an environment that can actually
-reach the network and run containers.
+### Lessons from the first live deploy
+
+A few things only surfaced once this ran for real, against a live
+Wikimedia connection and a shared host:
+
+- **Port collisions matter more than they look.** ClickHouse's native
+  protocol port (`9000`) is a common default other software also uses --
+  the compose file now publishes it off that default (`19000`) for
+  exactly this reason. If a container that other services `depends_on:
+  condition: service_healthy` fails to bind its port, Compose blocks
+  those dependents from starting at all rather than crash-looping them --
+  worth knowing when diagnosing why half a stack never came up.
+- **A stale SSE checkpoint is a real operational hazard, not a
+  theoretical one.** Wikimedia EventStreams replays everything since the
+  stored `Last-Event-ID` on reconnect. If the bridge has been down (or
+  bounced repeatedly) for a while, resuming from an old checkpoint can
+  mean hours of backlog delivered in a burst -- enough to spike CPU/disk
+  I/O on a small host. The bridge now discards checkpoints older than
+  `MAX_CHECKPOINT_AGE_SECONDS` (default 900s) and resumes from "now"
+  instead, trading a small data gap for bounded load. See
+  `services/bridge/bridge/main.py`'s `resolve_resume_id`.
+  Redeploying frequently (e.g. a short polling interval bouncing
+  containers) compounds this, since every restart is another chance to
+  replay a growing backlog -- this is a deploy-cadence concern for
+  whatever CI/CD points at this repo, not something the pipeline itself
+  can fully guard against.
+- **Container log volume needs an operator-side limit.** This repo's
+  services log at a reasonable volume, but the default Docker logging
+  driver has no size cap or rotation -- on any host running this
+  long-term, set `log-opts` (`max-size`/`max-file`) at the Docker daemon
+  level, or per-service in a deploy overlay. Out of scope for this repo
+  the same way the rest of deploy infra is (see "Deploying" above), but
+  worth knowing before running this unattended for weeks.
+
+What's *not* yet verified: the `batch_extract` pageviews API response
+shape against a live call (see
+`services/batch_extract/batch_extract/client.py` docstring) -- the batch
+lane's polling interval (default 24h) means it hasn't had a live cycle
+confirmed yet at time of writing.
 
 ## Simplifications from the original design
 

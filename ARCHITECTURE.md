@@ -66,4 +66,4 @@ Two lanes into the warehouse: `raw_nrt` (bridge → Redpanda → Parquet buffer 
 
 ## Status
 
-First implementation pass done — see [`README.md`](README.md) for what's built, what's been verified, and how (short version: unit-tested and validated against the real SQLMesh/Dagster/docker-compose tooling, but not yet run end-to-end against live containers). Next step is exactly that: `docker compose up` against real infrastructure and a real Wikimedia connection.
+First implementation pass done and since run end-to-end against real infrastructure — see [`README.md`](README.md) for what's built, what's been verified, and how, including the operational lessons from that first live deploy (a port collision, a stale-checkpoint replay hazard, unbounded container log growth). Next: a frontend/serving layer on top of `marts.*`, and exposing the operator-facing services (Dagster, ClickHouse) safely to whoever deploys this — both deliberately out of scope for this repo's own code, same reasoning as "Deploying" in `README.md`.
