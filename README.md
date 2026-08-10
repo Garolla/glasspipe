@@ -51,9 +51,8 @@ docker compose up --build
 
 `.env` can be left mostly blank for a local run. Alloy (`observability/`)
 is behind a Compose profile and doesn't start by default -- it needs
-`LOKI_ENDPOINT_URL`/`PROMETHEUS_REMOTE_WRITE_URL` pointing at a real
-Loki/Prometheus, which you won't have on a laptop. Only bring it up if
-you actually have those to point it at:
+`LOKI_ENDPOINT_URL` pointing at a real Loki, which you won't have on a
+laptop. Only bring it up if you actually have one to point it at:
 
 ```bash
 docker compose --profile observability up --build
