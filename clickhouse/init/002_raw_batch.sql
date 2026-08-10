@@ -14,4 +14,5 @@ CREATE TABLE IF NOT EXISTS raw.raw_batch
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(date)
-ORDER BY (date, project, rank);
+ORDER BY (date, project, rank)
+TTL date + INTERVAL 5 DAY DELETE;

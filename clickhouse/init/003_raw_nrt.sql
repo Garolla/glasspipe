@@ -21,4 +21,5 @@ CREATE TABLE IF NOT EXISTS raw.raw_nrt
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMMDD(event_dt)
-ORDER BY (wiki, event_dt, event_id);
+ORDER BY (wiki, event_dt, event_id)
+TTL toDate(event_dt) + INTERVAL 5 DAY DELETE;

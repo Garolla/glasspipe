@@ -1,0 +1,39 @@
+<!--
+     ClickHouse's own internal system.* log tables (query_log, text_log,
+     trace_log, ...) have no TTL by default and grow unbounded, on a
+     resource-constrained VPS these can rival the pipeline's own data
+     (already ~160 MiB in under 4 hours in testing, with
+     asynchronous_metric_log alone at 11M+ rows). Cap them at the same
+     5-day window as raw.* (see clickhouse/init/003_raw_nrt.sql).
+
+     ClickHouse merges each of these top-level blocks with the base
+     config.xml definition (same tag name at the same level), so only the
+     new ttl child needs to be given here; database/table/partition_by
+     etc. are inherited from the base config.
+-->
+<clickhouse>
+    <query_log>
+        <ttl>event_date + INTERVAL 5 DAY DELETE</ttl>
+    </query_log>
+    <trace_log>
+        <ttl>event_date + INTERVAL 5 DAY DELETE</ttl>
+    </trace_log>
+    <part_log>
+        <ttl>event_date + INTERVAL 5 DAY DELETE</ttl>
+    </part_log>
+    <text_log>
+        <ttl>event_date + INTERVAL 5 DAY DELETE</ttl>
+    </text_log>
+    <metric_log>
+        <ttl>event_date + INTERVAL 5 DAY DELETE</ttl>
+    </metric_log>
+    <error_log>
+        <ttl>event_date + INTERVAL 5 DAY DELETE</ttl>
+    </error_log>
+    <asynchronous_metric_log>
+        <ttl>event_date + INTERVAL 5 DAY DELETE</ttl>
+    </asynchronous_metric_log>
+    <processors_profile_log>
+        <ttl>event_date + INTERVAL 5 DAY DELETE</ttl>
+    </processors_profile_log>
+</clickhouse>

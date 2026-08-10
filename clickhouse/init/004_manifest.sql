@@ -9,4 +9,5 @@ CREATE TABLE IF NOT EXISTS raw._loaded_files
     row_count  UInt64
 )
 ENGINE = MergeTree
-ORDER BY file_path;
+ORDER BY file_path
+TTL loaded_at + INTERVAL 5 DAY DELETE;

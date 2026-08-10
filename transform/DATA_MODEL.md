@@ -165,10 +165,15 @@ the row, only what it says). Same grain as staging.
 Things that are always true about this model, by construction — worth
 knowing because code elsewhere depends on them silently:
 
-- `raw.*` is never updated or deleted in place. `raw.raw_nrt` can
-  receive duplicate `event_id`s (at-least-once delivery); `raw.raw_batch`
-  cannot (each `batch_extract` run inserts a disjoint `(date, project,
-  access, article)` set).
+- `raw.*` is never updated or deleted in place *by application code*.
+  `raw.raw_nrt` can receive duplicate `event_id`s (at-least-once
+  delivery); `raw.raw_batch` cannot (each `batch_extract` run inserts a
+  disjoint `(date, project, access, article)` set). ClickHouse itself
+  does age out old rows via a 5-day `TTL` on `event_dt`/`date`
+  (`clickhouse/init/`) -- a fixed-size VPS can't hold this forever, and
+  the raw layer isn't meant to be the pipeline's only durable copy (see
+  "Retention" below). Nothing downstream of `raw.*` should assume a row
+  older than 5 days is still there.
 - `event_id` is the only dedup key in the whole model. Nothing downstream
   of `staging.stg_events_nrt` needs to think about duplicates again.
 - No table joins `raw_nrt`/`stg_events_nrt` against `raw_batch`/`stg_events_batch`.
@@ -177,3 +182,33 @@ knowing because code elsewhere depends on them silently:
 - Every `marts.*` table is a pure function of `staging.*` (plus, for
   `edits_hourly`, the time range being backfilled). Re-running any mart
   for a given period always produces the same result.
+
+## Retention
+
+Found the hard way: nothing here had a retention policy until a small,
+fixed-size VPS deployment made growth visible. `raw.raw_nrt` alone was
+projecting to ~25 GiB/month at observed traffic -- more than a typical
+small VPS's *entire* disk on its own, before counting anything else
+glasspipe or ClickHouse itself writes.
+
+| Table | TTL | Why this one |
+|---|---|---|
+| `raw.raw_nrt` | 5 days (`event_dt`) | The big one -- one row per event, including the full `raw_json`. The dominant cost. |
+| `raw.raw_batch` | 5 days (`date`) | Negligible in bytes (~22 B/row) -- TTL'd anyway for consistency, at the cost of losing cheap long-term pageview-rank history. If that history turns out to matter more than the consistency, raise or drop this one independently of `raw_nrt`. |
+| `raw._loaded_files` | 5 days (`loaded_at`) | Pure bookkeeping (see the manifest note in `raw._loaded_files` above) -- kept longer than `PARQUET_RETENTION_DAYS` (default 3) so a manifest row never expires before the Parquet file it tracks does; that ordering is what keeps the loader's idempotency check correct. |
+| `staging.*` | none (views) | Views compute over `raw.*` on read -- nothing to expire independently; they age out exactly as their underlying `raw.*` rows do. |
+| `marts.*` | **none, deliberately** | These are the pipeline's actual product: small (900 rows/day for `edits_hourly`), and the whole point is to keep aggregated history *after* the raw detail is gone. TTL-ing these would defeat the purpose glasspipe exists for. |
+
+5 days is shorter than Redpanda's own topic retention (7 days, the
+image's default -- see `services/bridge`/`services/landing`), which
+means `raw.raw_nrt`'s TTL is the binding constraint on how far back this
+system can answer questions from raw NRT detail, not Redpanda's: by the
+time a row would fall out of Redpanda's replay window, it's already gone
+from `raw.raw_nrt` too. Revisit the number if the actual disk budget or
+desired audit window changes; it's one `TTL` clause per table
+(`clickhouse/init/002_raw_batch.sql`, `003_raw_nrt.sql`,
+`004_manifest.sql`), plus `clickhouse/config/retention.xml` for
+ClickHouse's own internal `system.*` log tables, which have no retention
+by default and were already rivaling the pipeline's own data in testing
+(~160 MiB in under 4 hours, `asynchronous_metric_log` alone past 11M
+rows).
