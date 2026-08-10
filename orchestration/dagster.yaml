@@ -1,7 +1,14 @@
 # Deliberately minimal: run/event storage defaults to the SQLite-backed
-# local instance under $DAGSTER_HOME. That's the KISS choice for a
+# local instance under $DAGSTER_HOME/history. That's the KISS choice for a
 # single-deploy compose -- no extra Postgres just for Dagster's own
 # bookkeeping. Revisit if/when this needs to run with more than one
 # webserver/daemon replica.
+#
+# $DAGSTER_HOME/history is on the dagster_history Docker volume
+# (docker-compose.yml), not the image filesystem -- without it, every
+# image rebuild wipes Dagster's run/event history (and with it, every
+# asset's materialization status in the UI), even though the actual data
+# in ClickHouse is untouched. Same failure shape as SQLMesh's own state
+# store; see transform/README.md's "State store" section.
 telemetry:
   enabled: false

@@ -22,7 +22,9 @@ RUN mkdir -p /opt/dagster_home
 COPY orchestration/dagster.yaml /opt/dagster_home/dagster.yaml
 COPY orchestration/workspace.yaml /opt/dagster_home/workspace.yaml
 
-RUN useradd --create-home glasspipe && chown -R glasspipe /app /opt/dagster_home /opt/transform
+RUN mkdir -p /opt/transform/.state /opt/dagster_home/history \
+    && useradd --create-home glasspipe \
+    && chown -R glasspipe /app /opt/dagster_home /opt/transform
 USER glasspipe
 
 EXPOSE 3000

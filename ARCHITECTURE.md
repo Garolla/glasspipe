@@ -20,6 +20,8 @@ The SSE bridge and the landing layer write to the broker and to Parquet continuo
 
 *(Implementation note: the Parquet → `raw_nrt` load is a plain Python Dagster asset, not a SQLMesh model reading Parquet directly as first planned — a `sqlglot`/ClickHouse limitation with the `file()` table function, found while building it. Column-level lineage still covers everything from `staging.*` onward. Full explanation in `transform/README.md`.)*
 
+*(Implementation note: ClickHouse can't hold SQLMesh's own state either — SQLMesh refuses to use it as a `state_connection`, since it lacks the transactional guarantees SQLMesh's bookkeeping needs. This only surfaced once the stack was run against a live ClickHouse; the earlier `sqlmesh`/`sqlglot` parse-and-render validation didn't exercise it. State now lives in an embedded DuckDB file on its own Docker volume (`sqlmesh_state`), so backfill history survives image rebuilds. Full explanation in `transform/README.md`.)*
+
 ## Principles → decisions
 
 **01 · Lineage and observability as a system property**
@@ -48,6 +50,7 @@ Two lanes into the warehouse: `raw_nrt` (bridge → Redpanda → Parquet buffer 
 | Durable buffer | Parquet, TTL ~3 days | Decouples the NRT write rate from the DB; deleted only after a confirmed load |
 | Storage / serving | ClickHouse | Self-hosted OLAP, real write concurrency, inspectable from DBeaver, native Prometheus metrics |
 | Transformation | SQLMesh | Native column-level lineage, CI gate on breaking changes |
+| SQLMesh state store | Embedded DuckDB, on a persisted Docker volume | ClickHouse can't back SQLMesh's own bookkeeping (backfilled intervals, model fingerprints, prod's pointers) -- no transactional guarantees. Only SQLMesh's own subprocess touches this file, so single-writer is fine here, unlike the warehouse role DuckDB was dropped for below |
 | Orchestration | Dagster | Native assets + observed external assets, freshness/quality asset checks |
 | Logs and metrics | Grafana Alloy → Loki/Grafana | Reuses the Grafana + Loki stack already running on the VPS; Alloy scrapes ClickHouse/Redpanda's `/metrics` |
 

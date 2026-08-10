@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 800" role="img" aria-label="glasspipe architecture: the Wikimedia SSE stream passes through a custom bridge into Redpanda, gets cleaned, and lands on Parquet as a temporary buffer; a batch source extracts directly into ClickHouse raw_batch. Both raw tables stay separate and are transformed by SQLMesh, orchestrated by Dagster, which observes the upstream part via sensor and executes the downstream runs. Alloy collects logs and metrics and ships them to Grafana and Loki already running on the VPS.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 800" role="img" aria-label="glasspipe architecture: the Wikimedia SSE stream passes through a custom bridge into Redpanda, gets cleaned, and lands on Parquet as a temporary buffer; a batch source extracts directly into ClickHouse raw_batch. Both raw tables stay separate and are transformed by SQLMesh, orchestrated by Dagster, which observes the upstream part via sensor and executes the downstream runs. SQLMesh keeps its own bookkeeping (backfilled intervals, model fingerprints) in an embedded DuckDB file on a persisted Docker volume, since ClickHouse cannot host it. Alloy collects logs and metrics and ships them to Grafana and Loki already running on the VPS.">
   <style>
     :root {
       --bg: #f4f6f7;
@@ -73,7 +73,7 @@
   <rect x="0" y="0" width="1360" height="800" fill="var(--bg)"/>
 
   <!-- system boundary -->
-  <rect x="20" y="20" width="1300" height="520" rx="16" class="boundary" stroke-width="1.5" stroke-dasharray="3 6"/>
+  <rect x="20" y="20" width="1300" height="560" rx="16" class="boundary" stroke-width="1.5" stroke-dasharray="3 6"/>
   <text x="40" y="44" class="svg-faint" font-size="10.5" letter-spacing=".04em">RUNNING SYSTEM — EVERYTHING IN HERE SHIPS LOGS/METRICS TO ALLOY</text>
 
   <!-- dagster band -->
@@ -174,6 +174,12 @@
   <line x1="1070" y1="482" x2="1146" y2="482" class="lane-stream-line" stroke-width="1.8" marker-end="url(#streamHead)"/>
   <text x="1000" y="405" text-anchor="middle" class="neutral-text" font-size="10.5">SQLMesh — transformation, column lineage</text>
   <text x="880" y="519" text-anchor="middle" class="svg-faint" font-size="10.5">raw_nrt and raw_batch: distinct tables, no forced reconciliation</text>
+
+  <!-- sqlmesh state store -->
+  <line x1="1230" y1="502" x2="1230" y2="516" class="neutral-line" stroke-width="1.6" stroke-dasharray="2 4" marker-end="url(#neutralHead)"/>
+  <rect x="1150" y="520" width="160" height="50" rx="8" class="neutral-box" stroke-width="1.4"/>
+  <text x="1230" y="542" text-anchor="middle" class="svg-text" font-size="12.5" font-weight="600">SQLMesh state</text>
+  <text x="1230" y="558" text-anchor="middle" class="svg-faint" font-size="10">DuckDB, persisted volume</text>
 
   <!-- git -->
   <rect x="910" y="580" width="200" height="60" rx="8" class="neutral-box" stroke-width="1.4"/>

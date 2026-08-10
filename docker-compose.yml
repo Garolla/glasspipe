@@ -4,6 +4,8 @@ volumes:
   clickhouse_data:
   parquet_data:
   bridge_data:
+  sqlmesh_state:
+  dagster_history:
 
 services:
 
@@ -108,16 +110,23 @@ services:
       HEARTBEAT_PATH: /data/bridge/heartbeat
       SQLMESH_PROJECT_DIR: /opt/transform
       PARQUET_RETENTION_DAYS: ${PARQUET_RETENTION_DAYS:-3}
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-wikipedia.recentchange}
+      KAFKA_GROUP_ID: glasspipe-landing
       SQLMESH__GATEWAYS__CLICKHOUSE__CONNECTION__HOST: clickhouse
       SQLMESH__GATEWAYS__CLICKHOUSE__CONNECTION__USERNAME: ${CLICKHOUSE_USER:-default}
       SQLMESH__GATEWAYS__CLICKHOUSE__CONNECTION__PASSWORD: ${CLICKHOUSE_PASSWORD:-}
     volumes:
       - parquet_data:/data/parquet
       - bridge_data:/data/bridge:ro
+      - sqlmesh_state:/opt/transform/.state
+      - dagster_history:/opt/dagster_home/history
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
       clickhouse:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
     restart: unless-stopped
 
@@ -131,8 +140,12 @@ services:
     volumes:
       - parquet_data:/data/parquet
       - bridge_data:/data/bridge:ro
+      - sqlmesh_state:/opt/transform/.state
+      - dagster_history:/opt/dagster_home/history
     depends_on:
       clickhouse:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
     restart: unless-stopped
 

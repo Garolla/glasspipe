@@ -1,11 +1,23 @@
 from pathlib import Path
 
-from dagster import OpExecutionContext, job, op
+from dagster import OpExecutionContext, define_asset_job, job, op
 
 from glasspipe_common.paths import ParquetPaths
 
+from orchestration.assets import edits_hourly, pageviews_top, raw_nrt, stg_events_batch, stg_events_nrt
 from orchestration.config import OrchestrationConfig
 from orchestration.raw_loader import get_clickhouse_client, list_loaded_files
+
+pipeline_job = define_asset_job(
+    name="pipeline_job",
+    selection=[raw_nrt, stg_events_nrt, stg_events_batch, edits_hourly, pageviews_top],
+    description=(
+        "Loads new Parquet into raw_nrt and runs every SQLMesh model -- the "
+        "recurring heartbeat of the pipeline. Doesn't touch the always-on "
+        "services (bridge/landing/batch_extract); those keep running "
+        "independently and are only observed (see external_assets.py)."
+    ),
+)
 
 
 @op(description="Deletes Parquet files past the retention window -- but only ones confirmed loaded into ClickHouse.")
