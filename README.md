@@ -59,7 +59,7 @@ docker compose --profile observability up --build
 ```
 
 Dagster UI at `http://localhost:3000`. ClickHouse at `localhost:8123`
-(HTTP, for `clickhouse-connect`/DBeaver) and `localhost:9000` (native).
+(HTTP, for `clickhouse-connect`/DBeaver) and `localhost:19000` (native protocol -- published off the default 9000 to avoid colliding with other common services on that port).
 
 The first time, `raw.raw_batch`, `raw.raw_nrt`, and `raw._loaded_files` are
 created by `clickhouse/init/*.sql`. SQLMesh's `staging.*`/`marts.*` tables
@@ -92,7 +92,7 @@ instead of reusing `clickhouse_data`. Whatever runs the deploy should
 also keep `.env` at a fixed path outside the checkout, for the same
 reason -- it isn't and shouldn't be committed.
 
-Another: Dagster (`3000`), ClickHouse (`8123`/`9000`), and Redpanda
+Another: Dagster (`3000`), ClickHouse (`8123`/`19000`), and Redpanda
 (`9092`) are published bound to `127.0.0.1` only, not `0.0.0.0` -- none
 of them have auth, so on a host with a public IP they should never be
 reachable directly from the internet. Get to them from outside the host

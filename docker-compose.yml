@@ -43,7 +43,7 @@ services:
     mem_limit: 2g
     ports:
       - "127.0.0.1:8123:8123" # HTTP (also used by clickhouse-connect and DBeaver)
-      - "127.0.0.1:9000:9000" # native protocol
+      - "127.0.0.1:19000:9000" # native protocol -- published on a non-default host port; 9000 collides with common defaults (e.g. Authentik's web UI). Nothing in this pipeline talks to ClickHouse over the native protocol internally (everything uses the HTTP interface, 8123), so this only affects external tools like DBeaver.
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "-", "http://localhost:8123/ping"]
       interval: 10s
