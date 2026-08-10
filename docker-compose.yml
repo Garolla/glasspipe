@@ -40,7 +40,7 @@ services:
       - clickhouse_data:/var/lib/clickhouse
       - ./clickhouse/init:/docker-entrypoint-initdb.d:ro
       - ./clickhouse/config:/etc/clickhouse-server/config.d:ro
-    mem_limit: 3g
+    mem_limit: 2g
     ports:
       - "127.0.0.1:8123:8123" # HTTP (also used by clickhouse-connect and DBeaver)
       - "127.0.0.1:9000:9000" # native protocol
@@ -129,7 +129,7 @@ services:
       - bridge_data:/data/bridge:ro
       - sqlmesh_state:/opt/transform/.state
       - dagster_history:/opt/dagster_home/history
-    mem_limit: 512m
+    mem_limit: 768m
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
@@ -151,7 +151,7 @@ services:
       - bridge_data:/data/bridge:ro
       - sqlmesh_state:/opt/transform/.state
       - dagster_history:/opt/dagster_home/history
-    mem_limit: 512m
+    mem_limit: 1536m
     depends_on:
       clickhouse:
         condition: service_healthy

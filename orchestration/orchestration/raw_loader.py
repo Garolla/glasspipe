@@ -69,28 +69,46 @@ def find_new_files(paths: ParquetPaths, already_loaded: set[str]) -> list[Path]:
     return [f for f in paths.iter_nrt_files() if str(f) not in already_loaded]
 
 
-def load_file(client, path: Path) -> int:
-    table = pq.read_table(path)
-    records = table.select(NRT_COLUMNS).to_pylist()
-    if records:
-        rows = [[record[col] for col in NRT_COLUMNS] for record in records]
-        client.insert(RAW_NRT_TABLE, rows, column_names=NRT_COLUMNS)
+def load_batch(client, batch: list[Path]) -> int:
+    """Load a batch of files as one INSERT, not one per file.
 
-    client.command(
-        f"INSERT INTO {MANIFEST_TABLE} (file_path, loaded_at, row_count) VALUES (%(path)s, now(), %(count)s)",
-        parameters={"path": str(path), "count": len(records)},
-    )
-    return len(records)
+    One INSERT per file was the original shape, and it's what caused
+    ClickHouse's own memory to climb until it hit MEMORY_LIMIT_EXCEEDED
+    partway through a ~14,500-file backlog: each tiny INSERT creates a
+    new part, and the accumulated per-part overhead (index, marks) across
+    thousands of parts in one session adds up. Manifest rows are still
+    recorded one command per file (unchanged) -- they're cheap; it's the
+    raw_nrt data insert that needs batching.
+    """
+    all_rows: list[list] = []
+    file_row_counts: list[int] = []
+    for path in batch:
+        table = pq.read_table(path)
+        records = table.select(NRT_COLUMNS).to_pylist()
+        file_row_counts.append(len(records))
+        all_rows.extend([record[col] for col in NRT_COLUMNS] for record in records)
+
+    if all_rows:
+        client.insert(RAW_NRT_TABLE, all_rows, column_names=NRT_COLUMNS)
+
+    for path, count in zip(batch, file_row_counts):
+        client.command(
+            f"INSERT INTO {MANIFEST_TABLE} (file_path, loaded_at, row_count) VALUES (%(path)s, now(), %(count)s)",
+            parameters={"path": str(path), "count": count},
+        )
+
+    return sum(file_row_counts)
 
 
-def load_new_files(client, paths: ParquetPaths) -> LoadResult:
+def load_new_files(client, paths: ParquetPaths, *, batch_size: int = 200) -> LoadResult:
     already_loaded = list_loaded_files(client)
     new_files = find_new_files(paths, already_loaded)
 
     rows_loaded = 0
-    for path in new_files:
-        count = load_file(client, path)
+    for i in range(0, len(new_files), batch_size):
+        batch = new_files[i : i + batch_size]
+        count = load_batch(client, batch)
         rows_loaded += count
-        logger.info("loaded %d rows from %s", count, path)
+        logger.info("loaded %d rows from %d file(s)", count, len(batch))
 
     return LoadResult(files_loaded=len(new_files), rows_loaded=rows_loaded)
