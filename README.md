@@ -45,8 +45,18 @@ done
 ## Running it
 
 ```bash
-cp .env.example .env   # fill in LOKI_ENDPOINT_URL / PROMETHEUS_REMOTE_WRITE_URL at minimum
+cp .env.example .env
 docker compose up --build
+```
+
+`.env` can be left mostly blank for a local run. Alloy (`observability/`)
+is behind a Compose profile and doesn't start by default -- it needs
+`LOKI_ENDPOINT_URL`/`PROMETHEUS_REMOTE_WRITE_URL` pointing at a real
+Loki/Prometheus, which you won't have on a laptop. Only bring it up if
+you actually have those to point it at:
+
+```bash
+docker compose --profile observability up --build
 ```
 
 Dagster UI at `http://localhost:3000`. ClickHouse at `localhost:8123`
@@ -67,8 +77,12 @@ is the interface: `docker-compose.yml` plus a populated `.env` (see
 system pointed at this repo can drive it the same way local dev does:
 
 ```bash
-docker compose --env-file /path/to/your/.env up -d --build
+docker compose --env-file /path/to/your/.env --profile observability up -d --build
 ```
+
+`--profile observability` is what actually starts Alloy -- local dev
+above deliberately leaves it off (see "Running it"), but a real deploy
+should include it so logs/metrics actually ship somewhere.
 
 One detail worth knowing if you're wiring that up: `docker-compose.yml`
 pins `name: glasspipe` at the top. Without that, Compose infers the

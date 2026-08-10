@@ -138,6 +138,7 @@ services:
 
   alloy:
     image: grafana/alloy:v1.4.3
+    profiles: ["observability"]
     command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "/etc/alloy/config.alloy"]
     environment:
       LOKI_ENDPOINT_URL: ${LOKI_ENDPOINT_URL}
