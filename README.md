@@ -161,6 +161,17 @@ Wikimedia connection and a shared host:
   level, or per-service in a deploy overlay. Out of scope for this repo
   the same way the rest of deploy infra is (see "Deploying" above), but
   worth knowing before running this unattended for weeks.
+- **Redpanda's default topic retention (7 days, unbounded bytes) is too
+  generous for a small host.** The bridge only needs Redpanda as a short
+  buffer ahead of `landing`, which consumes near-real-time and writes to
+  Parquet -- it doesn't need days of history sitting in the broker. Left
+  at Kafka/Redpanda defaults, an unfiltered global firehose filled several
+  GB in under a day on a small VPS, most of it in an anonymous volume
+  Compose doesn't even name. A `redpanda-init` step now creates (or
+  alters) the topic with an explicit `retention.ms`/`retention.bytes`
+  pair (`KAFKA_TOPIC_RETENTION_MS`/`KAFKA_TOPIC_RETENTION_BYTES` in
+  `.env.example`), bridge/landing wait on it via
+  `service_completed_successfully`.
 
 What's *not* yet verified: the `batch_extract` pageviews API response
 shape against a live call (see

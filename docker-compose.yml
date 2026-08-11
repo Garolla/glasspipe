@@ -30,6 +30,27 @@ services:
       retries: 10
     restart: on-failure
 
+  redpanda-init:
+    image: redpandadata/redpanda:v24.2.7
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        rpk topic create "$$KAFKA_TOPIC" --brokers redpanda:9092 \
+          -c retention.ms="$$KAFKA_TOPIC_RETENTION_MS" \
+          -c retention.bytes="$$KAFKA_TOPIC_RETENTION_BYTES" \
+        || rpk topic alter-config "$$KAFKA_TOPIC" --brokers redpanda:9092 \
+          --set retention.ms="$$KAFKA_TOPIC_RETENTION_MS" \
+          --set retention.bytes="$$KAFKA_TOPIC_RETENTION_BYTES"
+    environment:
+      KAFKA_TOPIC: ${KAFKA_TOPIC:-wikipedia.recentchange}
+      KAFKA_TOPIC_RETENTION_MS: ${KAFKA_TOPIC_RETENTION_MS:-21600000}
+      KAFKA_TOPIC_RETENTION_BYTES: ${KAFKA_TOPIC_RETENTION_BYTES:-2147483648}
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: "no"
+
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
     environment:
@@ -67,6 +88,8 @@ services:
     depends_on:
       redpanda:
         condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
     restart: on-failure
 
   landing:
@@ -84,6 +107,8 @@ services:
     depends_on:
       redpanda:
         condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
     restart: on-failure
 
   batch_extract:
