@@ -45,10 +45,32 @@ class ParquetPaths:
         """Pattern relative to the ClickHouse user_files mount, for `file()`."""
         return "nrt/**/*.parquet"
 
-    def iter_nrt_files(self):
+    def iter_nrt_files(self, *, since: date | None = None):
+        """Yield NRT parquet files, optionally restricted to partitions dated >= since.
+
+        Filtering by partition dir (rather than listing everything and checking
+        each file's mtime) is what makes the `since` filter cheap: it skips
+        rglob-ing into old dt= partitions entirely instead of walking them and
+        discarding the results.
+        """
         if not self.nrt_root.exists():
             return
-        yield from self.nrt_root.rglob("*.parquet")
+        if since is None:
+            yield from self.nrt_root.rglob("*.parquet")
+            return
+        for wiki_dir in self.nrt_root.iterdir():
+            if not wiki_dir.is_dir():
+                continue
+            for dt_dir in wiki_dir.iterdir():
+                if not dt_dir.is_dir():
+                    continue
+                dt_str = dt_dir.name.removeprefix("dt=")
+                try:
+                    partition_date = date.fromisoformat(dt_str)
+                except ValueError:
+                    continue
+                if partition_date >= since:
+                    yield from dt_dir.rglob("*.parquet")
 
     def file_age_seconds(self, path: Path, *, now: datetime | None = None) -> float:
         now = now or datetime.now()

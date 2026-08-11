@@ -32,6 +32,31 @@ def test_iter_nrt_files_empty_when_root_missing(tmp_path):
     assert list(paths.iter_nrt_files()) == []
 
 
+def test_iter_nrt_files_since_excludes_older_partitions(tmp_path):
+    paths = ParquetPaths(base_dir=tmp_path)
+    old_dir = paths.nrt_partition_dir("enwiki", date(2026, 8, 1))
+    old_dir.mkdir(parents=True)
+    old_file = old_dir / "part-0001.parquet"
+    old_file.write_bytes(b"old")
+
+    new_dir = paths.nrt_partition_dir("enwiki", date(2026, 8, 9))
+    new_dir.mkdir(parents=True)
+    new_file = new_dir / "part-0001.parquet"
+    new_file.write_bytes(b"new")
+
+    found = set(paths.iter_nrt_files(since=date(2026, 8, 8)))
+    assert found == {new_file}
+
+
+def test_iter_nrt_files_since_ignores_malformed_partition_names(tmp_path):
+    paths = ParquetPaths(base_dir=tmp_path)
+    bad_dir = paths.nrt_root / "wiki=enwiki" / "dt=not-a-date"
+    bad_dir.mkdir(parents=True)
+    (bad_dir / "part-0001.parquet").write_bytes(b"x")
+
+    assert list(paths.iter_nrt_files(since=date(2026, 1, 1))) == []
+
+
 def test_file_age_seconds(tmp_path):
     paths = ParquetPaths(base_dir=tmp_path)
     f = tmp_path / "x.parquet"

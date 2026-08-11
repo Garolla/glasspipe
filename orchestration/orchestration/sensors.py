@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import date, timedelta
 from pathlib import Path
 
 from dagster import AssetMaterialization, AssetObservation, SensorEvaluationContext, SkipReason, sensor
@@ -35,8 +36,17 @@ def parquet_landing_sensor(context: SensorEvaluationContext):
     config = OrchestrationConfig.from_env()
     paths = ParquetPaths(base_dir=Path(config.parquet_dir))
 
-    current_files = {str(f) for f in paths.iter_nrt_files()}
+    # Files always land in today's partition (occasionally yesterday's, right
+    # around midnight), so scanning further back is pure waste -- and carrying
+    # the full historical file list forward as the cursor doesn't scale: this
+    # sensor once accumulated 285k+ files, and re-listing + re-cursoring all of
+    # them every 30s was slow enough to starve the code server's heartbeat and
+    # crash-loop the daemon. Intersecting seen_before with the current window
+    # also shrinks a pre-fix (full-history) cursor back down on its first run.
+    since = date.today() - timedelta(days=1)
+    current_files = {str(f) for f in paths.iter_nrt_files(since=since)}
     seen_before = set(json.loads(context.cursor)) if context.cursor else set()
+    seen_before &= current_files
     new_files = current_files - seen_before
 
     context.update_cursor(json.dumps(sorted(current_files)))
