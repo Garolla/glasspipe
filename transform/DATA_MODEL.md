@@ -198,14 +198,19 @@ glasspipe or ClickHouse itself writes.
 | `raw._loaded_files` | 5 days (`loaded_at`) | Pure bookkeeping (see the manifest note in `raw._loaded_files` above) -- kept longer than `PARQUET_RETENTION_DAYS` (default 3) so a manifest row never expires before the Parquet file it tracks does; that ordering is what keeps the loader's idempotency check correct. |
 | `staging.*` | none (views) | Views compute over `raw.*` on read -- nothing to expire independently; they age out exactly as their underlying `raw.*` rows do. |
 | `marts.*` | **none, deliberately** | These are the pipeline's actual product: small (900 rows/day for `edits_hourly`), and the whole point is to keep aggregated history *after* the raw detail is gone. TTL-ing these would defeat the purpose glasspipe exists for. |
+| Redpanda topic (`wikipedia.recentchange`) | `KAFKA_TOPIC_RETENTION_MS` / `KAFKA_TOPIC_RETENTION_BYTES`, default 6h / 2 GiB, whichever hits first | Not a ClickHouse table, but the same retention story: a short buffer between `bridge` (producer) and `landing` (near-real-time consumer), not a second copy of history. Applied by the `redpanda-init` step in `docker-compose.yml` on every startup, so it's enforced even if the topic gets recreated from scratch. Left at Redpanda's own defaults (7 days, unbounded bytes) it filled several GiB in under a day on a small VPS -- see "Lessons from the first live deploy" in `README.md`. |
 
-5 days is shorter than Redpanda's own topic retention (7 days, the
-image's default -- see `services/bridge`/`services/landing`), which
-means `raw.raw_nrt`'s TTL is the binding constraint on how far back this
-system can answer questions from raw NRT detail, not Redpanda's: by the
-time a row would fall out of Redpanda's replay window, it's already gone
-from `raw.raw_nrt` too. Revisit the number if the actual disk budget or
-desired audit window changes; it's one `TTL` clause per table
+Redpanda's topic retention is now deliberately *much shorter* than
+`raw.raw_nrt`'s TTL -- it protects against `landing` downtime, it isn't a
+second copy of query history. If `landing` is down (or falling behind)
+longer than the topic's retention window, those rows age out of Redpanda
+before `landing` ever reads them: a real gap in `raw.raw_nrt`, not just a
+delay -- widen `KAFKA_TOPIC_RETENTION_MS`/`_BYTES` if that tradeoff needs
+to move. `raw.raw_nrt`'s own 5-day TTL is what actually bounds how far
+back this system can answer questions from raw NRT detail, independent of
+Redpanda: once a row has landed, its lifetime is governed by the `TTL`
+clause alone. Revisit either number if the actual disk budget or desired
+audit window changes; the ClickHouse side is one `TTL` clause per table
 (`clickhouse/init/002_raw_batch.sql`, `003_raw_nrt.sql`,
 `004_manifest.sql`), plus `clickhouse/config/retention.xml` for
 ClickHouse's own internal `system.*` log tables, which have no retention
