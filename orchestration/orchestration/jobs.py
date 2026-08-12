@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from pathlib import Path
 
 from dagster import OpExecutionContext, define_asset_job, job, op
@@ -26,11 +27,17 @@ def cleanup_loaded_parquet(context: OpExecutionContext) -> None:
     paths = ParquetPaths(base_dir=Path(config.parquet_dir))
     client = get_clickhouse_client(config)
 
-    already_loaded = list_loaded_files(client)
+    # Bound the scan the same way raw_loader does (see its comment): files
+    # past retention are always recent by definition, so scanning/looking up
+    # the entire history here is pure waste that scales with the whole
+    # backlog instead of with retention_days. A few days of buffer beyond
+    # retention_days is enough to still catch anything that slipped a cycle.
+    since = date.today() - timedelta(days=config.parquet_retention_days + 2)
+    already_loaded = list_loaded_files(client, since=since)
     cutoff_seconds = config.parquet_retention_days * 86400
 
     deleted = 0
-    for path in paths.iter_nrt_files():
+    for path in paths.iter_nrt_files(since=since):
         if str(path) not in already_loaded:
             continue  # never delete a file that hasn't been confirmed loaded
         if paths.file_age_seconds(path) < cutoff_seconds:

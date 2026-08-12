@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from pathlib import Path
 
 from dagster import AssetExecutionContext, MetadataValue, asset
@@ -23,7 +24,8 @@ def raw_nrt(context: AssetExecutionContext) -> None:
     paths = ParquetPaths(base_dir=Path(config.parquet_dir))
     client = get_clickhouse_client(config)
 
-    result = load_new_files(client, paths)
+    since = date.today() - timedelta(days=1)
+    result = load_new_files(client, paths, since=since)
     context.add_output_metadata(
         {
             "files_loaded": result.files_loaded,

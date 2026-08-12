@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -19,7 +19,7 @@ class FakeClient:
         self.insert_call_count = 0
         self.commands = []
 
-    def query(self, sql):
+    def query(self, sql, parameters=None):
         assert "_loaded_files" in sql
         return FakeQueryResult([[f] for f in self._loaded])
 
@@ -107,3 +107,20 @@ def test_load_new_files_batches_inserts_across_files(tmp_path):
     assert client.insert_call_count == 3  # ceil(5 / 2)
     assert len(client.commands) == 5  # still one manifest entry per file
     assert {c[1]["path"] for c in client.commands} == {str(f) for f in files}
+
+
+def test_load_new_files_since_ignores_older_partitions(tmp_path):
+    """Regression test: an unbounded scan of the whole on-disk backlog is
+    what OOM-killed this step at 180k+ files. Passing `since` must keep
+    old, out-of-window files invisible even though they're unloaded."""
+    paths = ParquetPaths(base_dir=tmp_path)
+    old_file = paths.nrt_partition_dir("enwiki", date(2026, 8, 1)) / "part-old.parquet"
+    write_sample_parquet(old_file, ["evt-old"])
+    new_file = paths.nrt_partition_dir("enwiki", date(2026, 8, 9)) / "part-new.parquet"
+    write_sample_parquet(new_file, ["evt-new"])
+
+    client = FakeClient()
+    result = load_new_files(client, paths, since=date(2026, 8, 8))
+
+    assert result.files_loaded == 1
+    assert client.commands[0][1]["path"] == str(new_file)

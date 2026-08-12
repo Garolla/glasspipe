@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 import clickhouse_connect
@@ -60,13 +61,19 @@ def get_clickhouse_client(config: OrchestrationConfig):
     )
 
 
-def list_loaded_files(client) -> set[str]:
-    result = client.query(f"SELECT file_path FROM {MANIFEST_TABLE}")
+def list_loaded_files(client, *, since: date | None = None) -> set[str]:
+    if since is None:
+        result = client.query(f"SELECT file_path FROM {MANIFEST_TABLE}")
+    else:
+        result = client.query(
+            f"SELECT file_path FROM {MANIFEST_TABLE} WHERE loaded_at >= %(since)s",
+            parameters={"since": since},
+        )
     return {row[0] for row in result.result_rows}
 
 
-def find_new_files(paths: ParquetPaths, already_loaded: set[str]) -> list[Path]:
-    return [f for f in paths.iter_nrt_files() if str(f) not in already_loaded]
+def find_new_files(paths: ParquetPaths, already_loaded: set[str], *, since: date | None = None) -> list[Path]:
+    return [f for f in paths.iter_nrt_files(since=since) if str(f) not in already_loaded]
 
 
 def load_batch(client, batch: list[Path]) -> int:
@@ -100,9 +107,17 @@ def load_batch(client, batch: list[Path]) -> int:
     return sum(file_row_counts)
 
 
-def load_new_files(client, paths: ParquetPaths, *, batch_size: int = 200) -> LoadResult:
-    already_loaded = list_loaded_files(client)
-    new_files = find_new_files(paths, already_loaded)
+def load_new_files(client, paths: ParquetPaths, *, batch_size: int = 200, since: date | None = None) -> LoadResult:
+    # Files land continuously across hundreds of wikis (see landing's
+    # buffered writer -- one file per wiki+date per flush), so full-history
+    # scans of both the on-disk listing and the _loaded_files manifest grow
+    # without bound once the backlog gets big, to the point of OOM-killing
+    # this step (dagster.code_server / ChildProcessCrashException, seen
+    # with a 180k+ file backlog). Callers should pass a trailing-window
+    # `since` (assets.py does) to keep the working set proportional to a
+    # day or two of traffic instead of the whole history.
+    already_loaded = list_loaded_files(client, since=since)
+    new_files = find_new_files(paths, already_loaded, since=since)
 
     rows_loaded = 0
     for i in range(0, len(new_files), batch_size):
