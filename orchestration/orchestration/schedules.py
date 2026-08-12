@@ -4,8 +4,13 @@ from orchestration.jobs import cleanup_parquet_job, pipeline_job
 
 cleanup_parquet_schedule = ScheduleDefinition(
     job=cleanup_parquet_job,
-    cron_schedule="0 3 * * *",
-    description="Daily at 03:00 -- delete confirmed-loaded Parquet files past retention.",
+    cron_schedule="10 * * * *",
+    default_status=DefaultScheduleStatus.RUNNING,
+    description=(
+        "Hourly at :10, ten minutes after pipeline_job_schedule's :00 -- delete "
+        "confirmed-loaded Parquet files past retention. Was daily and STOPPED by "
+        "default, which let the buffer grow unbounded since nothing ever cleared it."
+    ),
 )
 
 pipeline_schedule = ScheduleDefinition(
