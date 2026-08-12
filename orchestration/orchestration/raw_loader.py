@@ -107,7 +107,16 @@ def load_batch(client, batch: list[Path]) -> int:
     return sum(file_row_counts)
 
 
-def load_new_files(client, paths: ParquetPaths, *, batch_size: int = 200, since: date | None = None) -> LoadResult:
+def load_new_files(client, paths: ParquetPaths, *, batch_size: int = 40, since: date | None = None) -> LoadResult:
+    # 200 was the original default and it OOM-killed raw_nrt's step
+    # subprocess by itself on the VPS (confirmed via the kernel's cgroup
+    # OOM log: single process anon-rss 522MB) even with the step running
+    # alone, no concurrent lanes. load_batch's to_pylist() materializes
+    # every column -- including raw_json, a full event payload per row --
+    # as Python objects for the whole batch before the INSERT, so at ~500
+    # rows/file, 200 files held that many events in memory at once. 40
+    # keeps the INSERT big enough to avoid the one-part-per-file problem
+    # load_batch's docstring describes, at roughly a fifth of the peak.
     # Files land continuously across hundreds of wikis (see landing's
     # buffered writer -- one file per wiki+date per flush), so full-history
     # scans of both the on-disk listing and the _loaded_files manifest grow
