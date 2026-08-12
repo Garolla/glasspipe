@@ -129,11 +129,20 @@ services:
         condition: service_healthy
     restart: on-failure
 
-  orchestration-webserver:
+  orchestration-code-server:
     build:
       context: .
       dockerfile: orchestration/Dockerfile
-    command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "/opt/dagster_home/workspace.yaml"]
+    # Long-lived code server the webserver/daemon connect to over grpc_server
+    # in workspace.yaml, instead of each spawning their own ephemeral
+    # `python_module` subprocess on every workspace reload. Those ephemeral
+    # subprocesses re-import the whole module (dagster, pyarrow, sqlmesh,
+    # clickhouse-connect) from scratch under a hardcoded 20s heartbeat
+    # timeout, and on a CPU-shared VPS that import routinely ran past 20s --
+    # the daemon killed it as unresponsive roughly once a minute, leaking an
+    # unreaped zombie each time. A single persistent server only pays that
+    # import cost once at startup.
+    command: ["dagster", "api", "grpc", "-h", "0.0.0.0", "-p", "4000", "-m", "orchestration.definitions", "-a", "defs", "-d", "/app", "--heartbeat", "--heartbeat-timeout", "120"]
     working_dir: /app
     environment: &orchestration_env
       CLICKHOUSE_HOST: clickhouse
@@ -156,13 +165,34 @@ services:
       - sqlmesh_state:/opt/transform/.state
       - dagster_history:/opt/dagster_home/history
     mem_limit: 768m
-    ports:
-      - "127.0.0.1:3000:3000"
     depends_on:
       clickhouse:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+    restart: on-failure
+
+  orchestration-webserver:
+    build:
+      context: .
+      dockerfile: orchestration/Dockerfile
+    command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "/opt/dagster_home/workspace.yaml"]
+    working_dir: /app
+    environment: *orchestration_env
+    # Still needed here, not just on orchestration-code-server: a run
+    # launched manually from the UI/GraphQL is forked as a subprocess of
+    # whichever process handled the launch request, which for manual
+    # launches is this one.
+    volumes:
+      - parquet_data:/data/parquet
+      - bridge_data:/data/bridge:ro
+      - sqlmesh_state:/opt/transform/.state
+      - dagster_history:/opt/dagster_home/history
+    mem_limit: 768m
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - orchestration-code-server
     restart: on-failure
 
   orchestration-daemon:
@@ -179,10 +209,7 @@ services:
       - dagster_history:/opt/dagster_home/history
     mem_limit: 1536m
     depends_on:
-      clickhouse:
-        condition: service_healthy
-      redpanda:
-        condition: service_healthy
+      - orchestration-code-server
     restart: on-failure
 
   alloy:

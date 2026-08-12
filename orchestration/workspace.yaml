@@ -1,5 +1,5 @@
 load_from:
-  - python_module:
-      module_name: orchestration.definitions
-      attribute: defs
-      working_directory: /app
+  - grpc_server:
+      host: orchestration-code-server
+      port: 4000
+      location_name: "orchestration"
