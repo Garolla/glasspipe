@@ -172,6 +172,54 @@ Wikimedia connection and a shared host:
   pair (`KAFKA_TOPIC_RETENTION_MS`/`KAFKA_TOPIC_RETENTION_BYTES` in
   `.env.example`), bridge/landing wait on it via
   `service_completed_successfully`.
+- **One Parquet file per wiki+date per flush doesn't scale once
+  downstream falls behind.** The landing writer buffers correctly (a
+  30s/500-record flush, not one file per event -- see
+  `services/landing/landing/writer.py`), but Wikimedia's `recentchange`
+  stream spans hundreds of concurrently active wikis, so even a healthy
+  flush cycle writes hundreds of files. Over a day that's tens of
+  thousands of small files; if the loader stalls for any reason the
+  on-disk backlog compounds fast (observed: 190k+ files / ~2.9GB
+  accumulated during one such stall). This is a real scaling limit of
+  the current write pattern, not just a downstream-consumption problem
+  -- flagged here rather than considered solved by the bound below.
+- **Unbounded backlog scans don't just get slow, they OOM-kill the
+  process outright.** `raw_nrt`'s load step and the Parquet cleanup job
+  both listed the entire on-disk buffer and the entire `_loaded_files`
+  manifest table on every run, with no bound -- fine at hundreds of
+  files, but at 180k+ it OOM-killed the step's subprocess
+  (`ChildProcessCrashException`, confirmed via the kernel's cgroup OOM
+  killer log). Both now take an explicit trailing-window `since` (see
+  `orchestration/orchestration/raw_loader.py`,
+  `orchestration/orchestration/jobs.py`) so the working set stays
+  proportional to a day or two of traffic instead of the whole history
+  -- the same bound `parquet_landing_sensor` already had, on the code
+  path that's actually active (that sensor defaults to `STOPPED` and
+  never ran).
+- **Dagster's default workspace loading re-imports the whole app on
+  every reload.** With `workspace.yaml` pointed at a Python module
+  instead of a running server, the daemon and webserver each spun up a
+  fresh ephemeral `dagster api grpc` subprocess -- reimporting
+  dagster/pyarrow/sqlmesh/clickhouse-connect from scratch -- on every
+  periodic workspace reload, under a hardcoded 20s heartbeat timeout. On
+  a CPU-shared host that import routinely took longer than 20s, so the
+  daemon killed the subprocess as unresponsive roughly once a minute and
+  never reaped it. A dedicated `orchestration-code-server` service now
+  loads the module once and stays up, referenced via `grpc_server` in
+  `workspace.yaml` instead of `python_module`.
+- **SQLMesh's local DuckDB state file isn't safe for concurrent
+  writers, and `pipeline_job` runs lanes in parallel by design.** The
+  NRT lane (`raw_nrt` → `stg_events_nrt` → `edits_hourly`) and the batch
+  lane (`stg_events_batch` → `pageviews_top`) are independent in the
+  asset graph, so Dagster's executor runs their steps concurrently --
+  and both lanes call into SQLMesh, which stores its own state in one
+  local DuckDB file (`sqlmesh_state` volume). When both lanes' SQLMesh
+  calls land close together, one fails outright rather than waiting for
+  the lock; re-running the same model in isolation immediately after
+  always succeeds, which is what points at contention rather than a
+  data problem. Not yet fixed -- the two lanes' SQLMesh calls need to be
+  serialized (or moved off a single-writer state backend) before this
+  stops being intermittent.
 
 What's *not* yet verified: the `batch_extract` pageviews API response
 shape against a live call (see
