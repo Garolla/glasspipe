@@ -172,17 +172,20 @@ Wikimedia connection and a shared host:
   pair (`KAFKA_TOPIC_RETENTION_MS`/`KAFKA_TOPIC_RETENTION_BYTES` in
   `.env.example`), bridge/landing wait on it via
   `service_completed_successfully`.
-- **One Parquet file per wiki+date per flush doesn't scale once
-  downstream falls behind.** The landing writer buffers correctly (a
+- **One Parquet file per wiki+date per flush didn't scale once
+  downstream fell behind.** The landing writer buffers correctly (a
   30s/500-record flush, not one file per event -- see
   `services/landing/landing/writer.py`), but Wikimedia's `recentchange`
   stream spans hundreds of concurrently active wikis, so even a healthy
-  flush cycle writes hundreds of files. Over a day that's tens of
-  thousands of small files; if the loader stalls for any reason the
-  on-disk backlog compounds fast (observed: 190k+ files / ~2.9GB
-  accumulated during one such stall). This is a real scaling limit of
-  the current write pattern, not just a downstream-consumption problem
-  -- flagged here rather than considered solved by the bound below.
+  flush cycle wrote one file per wiki with activity in that window --
+  hundreds of files every ~30s. Over a day that's tens of thousands of
+  small files; if the loader stalled for any reason the on-disk backlog
+  compounded fast (observed: 190k+ files / ~2.9GB accumulated during one
+  such stall). `wiki` was already a real column in `NRT_SCHEMA`, so
+  partitioning the directory layout by it too was pure duplication --
+  the writer now buffers and flushes by date only, one file per flush
+  (occasionally two, near midnight UTC) instead of one per wiki per
+  flush.
 - **Unbounded backlog scans don't just get slow, they OOM-kill the
   process outright.** `raw_nrt`'s load step and the Parquet cleanup job
   both listed the entire on-disk buffer and the entire `_loaded_files`

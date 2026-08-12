@@ -5,6 +5,13 @@ the partition directories with a glob, so "new data" just means "a new
 file appears". Buffering in memory and flushing periodically (by count or
 by time, whichever comes first) is what keeps file counts sane without
 needing a streaming Parquet writer.
+
+Buffered by date only, not by (wiki, date): `wiki` is already a real
+column in NRT_SCHEMA, so partitioning the directory layout by it too was
+pure duplication -- and an expensive one, since Wikimedia's recentchange
+stream spans hundreds of concurrently active wikis, so every flush wrote
+one file per wiki that had activity in that window. One file per flush
+(occasionally two, near midnight UTC) instead of one per wiki per flush.
 """
 
 from __future__ import annotations
@@ -43,12 +50,11 @@ NRT_SCHEMA = pa.schema(
 class BufferedParquetWriter:
     def __init__(self, paths: ParquetPaths):
         self._paths = paths
-        self._buffers: dict[tuple[str, str], list[dict]] = defaultdict(list)
+        self._buffers: dict[str, list[dict]] = defaultdict(list)
 
     def add(self, record: dict) -> None:
-        wiki = record["wiki"]
         event_date = record["event_dt"].date().isoformat()
-        self._buffers[(wiki, event_date)].append(record)
+        self._buffers[event_date].append(record)
 
     @property
     def buffered_count(self) -> int:
@@ -56,14 +62,14 @@ class BufferedParquetWriter:
 
     def flush_all(self) -> list[Path]:
         written: list[Path] = []
-        for (wiki, event_date), records in self._buffers.items():
-            written.append(self._flush_partition(wiki, event_date, records))
+        for event_date, records in self._buffers.items():
+            written.append(self._flush_partition(event_date, records))
         self._buffers.clear()
         return written
 
-    def _flush_partition(self, wiki: str, event_date: str, records: list[dict]) -> Path:
+    def _flush_partition(self, event_date: str, records: list[dict]) -> Path:
         year, month, day = (int(p) for p in event_date.split("-"))
-        partition_dir = self._paths.nrt_partition_dir(wiki, datetime(year, month, day).date())
+        partition_dir = self._paths.nrt_partition_dir(datetime(year, month, day).date())
         partition_dir.mkdir(parents=True, exist_ok=True)
 
         table = pa.Table.from_pylist(records, schema=NRT_SCHEMA)

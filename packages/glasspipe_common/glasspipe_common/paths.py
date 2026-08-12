@@ -34,9 +34,8 @@ class ParquetPaths:
     def dead_letter_root(self) -> Path:
         return self.base_dir / "dead_letter" / "nrt"
 
-    def nrt_partition_dir(self, wiki: str, event_date: date) -> Path:
-        safe_wiki = wiki.replace("/", "_")
-        return self.nrt_root / f"wiki={safe_wiki}" / f"dt={event_date.isoformat()}"
+    def nrt_partition_dir(self, event_date: date) -> Path:
+        return self.nrt_root / f"dt={event_date.isoformat()}"
 
     def dead_letter_partition_dir(self, event_date: date) -> Path:
         return self.dead_letter_root / f"dt={event_date.isoformat()}"
@@ -58,19 +57,16 @@ class ParquetPaths:
         if since is None:
             yield from self.nrt_root.rglob("*.parquet")
             return
-        for wiki_dir in self.nrt_root.iterdir():
-            if not wiki_dir.is_dir():
+        for dt_dir in self.nrt_root.iterdir():
+            if not dt_dir.is_dir():
                 continue
-            for dt_dir in wiki_dir.iterdir():
-                if not dt_dir.is_dir():
-                    continue
-                dt_str = dt_dir.name.removeprefix("dt=")
-                try:
-                    partition_date = date.fromisoformat(dt_str)
-                except ValueError:
-                    continue
-                if partition_date >= since:
-                    yield from dt_dir.rglob("*.parquet")
+            dt_str = dt_dir.name.removeprefix("dt=")
+            try:
+                partition_date = date.fromisoformat(dt_str)
+            except ValueError:
+                continue
+            if partition_date >= since:
+                yield from dt_dir.rglob("*.parquet")
 
     def file_age_seconds(self, path: Path, *, now: datetime | None = None) -> float:
         now = now or datetime.now()

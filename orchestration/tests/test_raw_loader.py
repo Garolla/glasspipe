@@ -55,7 +55,7 @@ def write_sample_parquet(path, event_ids):
 
 def test_load_new_files_loads_unseen_files_and_records_manifest(tmp_path):
     paths = ParquetPaths(base_dir=tmp_path)
-    file_a = paths.nrt_partition_dir("enwiki", datetime(2026, 8, 9).date()) / "part-a.parquet"
+    file_a = paths.nrt_partition_dir(datetime(2026, 8, 9).date()) / "part-a.parquet"
     write_sample_parquet(file_a, ["evt-1", "evt-2"])
 
     client = FakeClient()
@@ -69,7 +69,7 @@ def test_load_new_files_loads_unseen_files_and_records_manifest(tmp_path):
 
 def test_load_new_files_skips_already_loaded_files(tmp_path):
     paths = ParquetPaths(base_dir=tmp_path)
-    file_a = paths.nrt_partition_dir("enwiki", datetime(2026, 8, 9).date()) / "part-a.parquet"
+    file_a = paths.nrt_partition_dir(datetime(2026, 8, 9).date()) / "part-a.parquet"
     write_sample_parquet(file_a, ["evt-1"])
 
     client = FakeClient(already_loaded=[str(file_a)])
@@ -95,7 +95,7 @@ def test_load_new_files_batches_inserts_across_files(tmp_path):
     paths = ParquetPaths(base_dir=tmp_path)
     files = []
     for i in range(5):
-        f = paths.nrt_partition_dir("enwiki", datetime(2026, 8, 9).date()) / f"part-{i}.parquet"
+        f = paths.nrt_partition_dir(datetime(2026, 8, 9).date()) / f"part-{i}.parquet"
         write_sample_parquet(f, [f"evt-{i}-a", f"evt-{i}-b"])
         files.append(f)
 
@@ -114,9 +114,9 @@ def test_load_new_files_since_ignores_older_partitions(tmp_path):
     what OOM-killed this step at 180k+ files. Passing `since` must keep
     old, out-of-window files invisible even though they're unloaded."""
     paths = ParquetPaths(base_dir=tmp_path)
-    old_file = paths.nrt_partition_dir("enwiki", date(2026, 8, 1)) / "part-old.parquet"
+    old_file = paths.nrt_partition_dir(date(2026, 8, 1)) / "part-old.parquet"
     write_sample_parquet(old_file, ["evt-old"])
-    new_file = paths.nrt_partition_dir("enwiki", date(2026, 8, 9)) / "part-new.parquet"
+    new_file = paths.nrt_partition_dir(date(2026, 8, 9)) / "part-new.parquet"
     write_sample_parquet(new_file, ["evt-new"])
 
     client = FakeClient()
