@@ -142,7 +142,13 @@ services:
     # the daemon killed it as unresponsive roughly once a minute, leaking an
     # unreaped zombie each time. A single persistent server only pays that
     # import cost once at startup.
-    command: ["dagster", "api", "grpc", "-h", "0.0.0.0", "-p", "4000", "-m", "orchestration.definitions", "-a", "defs", "-d", "/app", "--heartbeat", "--heartbeat-timeout", "120"]
+    # No --heartbeat here: that flag is for ephemeral servers the daemon
+    # spawns and actively keeps alive by heartbeating them itself. This is a
+    # persistent server referenced via workspace.yaml's grpc_server target,
+    # which nothing heartbeats -- with --heartbeat it self-shut-down after
+    # 120s idle every time, and since that's a clean exit(0), restart:
+    # on-failure never brought it back.
+    command: ["dagster", "api", "grpc", "-h", "0.0.0.0", "-p", "4000", "-m", "orchestration.definitions", "-a", "defs", "-d", "/app"]
     working_dir: /app
     environment: &orchestration_env
       CLICKHOUSE_HOST: clickhouse
@@ -165,12 +171,12 @@ services:
       - sqlmesh_state:/opt/transform/.state
       - dagster_history:/opt/dagster_home/history
     mem_limit: 768m
+    restart: unless-stopped
     depends_on:
       clickhouse:
         condition: service_healthy
       redpanda:
         condition: service_healthy
-    restart: on-failure
 
   orchestration-webserver:
     build:
