@@ -217,12 +217,15 @@ Wikimedia connection and a shared host:
   asset graph, so Dagster's executor runs their steps concurrently --
   and both lanes call into SQLMesh, which stores its own state in one
   local DuckDB file (`sqlmesh_state` volume). When both lanes' SQLMesh
-  calls land close together, one fails outright rather than waiting for
-  the lock; re-running the same model in isolation immediately after
-  always succeeds, which is what points at contention rather than a
-  data problem. Not yet fixed -- the two lanes' SQLMesh calls need to be
-  serialized (or moved off a single-writer state backend) before this
-  stops being intermittent.
+  calls landed close together, one failed outright rather than waiting
+  for the lock; re-running the same model in isolation immediately after
+  always succeeded, which is what pointed at contention rather than a
+  data problem. An in-memory lock wouldn't have helped -- the two lanes'
+  calls happen in separate OS processes forked by Dagster's multiprocess
+  executor -- so `orchestration/orchestration/sqlmesh_runner.py` now
+  takes an `flock` on a file inside the same shared `sqlmesh_state`
+  volume, held for the whole `plan`+`run` pair, so the second lane waits
+  instead of racing.
 
 What's *not* yet verified: the `batch_extract` pageviews API response
 shape against a live call (see
