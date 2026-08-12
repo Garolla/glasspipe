@@ -28,7 +28,7 @@ class OrchestrationConfig:
             parquet_dir=os.environ.get("GLASSPIPE_PARQUET_DIR", "/data/parquet"),
             bridge_heartbeat_path=os.environ.get("HEARTBEAT_PATH", "/data/bridge/heartbeat"),
             sqlmesh_project_dir=os.environ.get("SQLMESH_PROJECT_DIR", "/opt/transform"),
-            parquet_retention_days=int(os.environ.get("PARQUET_RETENTION_DAYS", "0")),
+            parquet_retention_days=int(os.environ.get("PARQUET_RETENTION_DAYS", "1")),
             # Same env var names/defaults as services/bridge and services/landing --
             # this reads landing's consumer group, doesn't create its own.
             kafka_bootstrap_servers=os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "redpanda:9092"),

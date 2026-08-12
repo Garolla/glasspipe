@@ -143,7 +143,7 @@ services:
       GLASSPIPE_PARQUET_DIR: /data/parquet
       HEARTBEAT_PATH: /data/bridge/heartbeat
       SQLMESH_PROJECT_DIR: /opt/transform
-      PARQUET_RETENTION_DAYS: ${PARQUET_RETENTION_DAYS:-0}
+      PARQUET_RETENTION_DAYS: ${PARQUET_RETENTION_DAYS:-1}
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       KAFKA_TOPIC: ${KAFKA_TOPIC:-wikipedia.recentchange}
       KAFKA_GROUP_ID: glasspipe-landing
