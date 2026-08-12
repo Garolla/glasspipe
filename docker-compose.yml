@@ -170,7 +170,16 @@ services:
       - bridge_data:/data/bridge:ro
       - sqlmesh_state:/opt/transform/.state
       - dagster_history:/opt/dagster_home/history
-    mem_limit: 768m
+    # 768m wasn't enough headroom even with pipeline_job's steps serialized
+    # (max_concurrent: 1 in orchestration/jobs.py) -- base grpc server
+    # (~240MB resident) plus one step subprocess plus its `sqlmesh` CLI
+    # child can still brush against 768m with zero margin. This bump is a
+    # safety margin on top of that fix, not a substitute for it: the host
+    # is a shared VPS already oversubscribed on declared mem_limits (see
+    # the OOM lessons in README.md), so raising this without also capping
+    # concurrency would just let 3 concurrent step processes blow past a
+    # higher ceiling instead of a lower one.
+    mem_limit: 1024m
     restart: unless-stopped
     depends_on:
       clickhouse:

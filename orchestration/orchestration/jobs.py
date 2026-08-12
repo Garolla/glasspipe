@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from pathlib import Path
 
-from dagster import OpExecutionContext, define_asset_job, job, op
+from dagster import OpExecutionContext, define_asset_job, job, multiprocess_executor, op
 
 from glasspipe_common.paths import ParquetPaths
 
@@ -18,6 +18,19 @@ pipeline_job = define_asset_job(
         "services (bridge/landing/batch_extract); those keep running "
         "independently and are only observed (see external_assets.py)."
     ),
+    # Default multiprocess concurrency is os.cpu_count() (4 on the VPS), so
+    # raw_nrt/stg_events_batch/pageviews_top -- independent lanes with no
+    # dependency forcing them apart -- were forking up to 3 step subprocesses
+    # at once. Each reimports the full stack (pyarrow, dagster, sqlmesh,
+    # clickhouse-connect), and the two SQLMesh lanes shell out to their own
+    # `sqlmesh` subprocess on top of that. All of it runs inside
+    # orchestration-code-server's 768m cgroup (see its mem_limit comment in
+    # docker-compose.yml), which the concurrent peak blew past every single
+    # hourly tick -- the OOM killer took out whichever step process was
+    # heaviest, and the run failed. One step at a time keeps peak RSS inside
+    # the container instead of raising the limit and hoping the shared VPS
+    # has headroom.
+    executor_def=multiprocess_executor.configured({"max_concurrent": 1}),
 )
 
 
